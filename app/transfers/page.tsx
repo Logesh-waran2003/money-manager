@@ -1,26 +1,26 @@
 import Link from "next/link";
 import { Metadata } from "next";
-import AccountsList from "@/components/accounts/accounts-list";
+import TransfersList from "@/components/transfers/transfers-list";
 
 export const metadata: Metadata = {
-  title: "Accounts | Money Manager",
-  description: "View and manage your financial accounts",
+  title: "Transfers | Money Manager",
+  description: "View and manage your account transfers",
 };
 
-export default function AccountsPage() {
+export default function TransfersPage() {
   return (
     <div className="container mx-auto p-6">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Accounts</h1>
+        <h1 className="text-3xl font-bold">Transfers</h1>
         <Link
-          href="/accounts/new"
+          href="/transfers/new"
           className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
         >
-          Add New Account
+          New Transfer
         </Link>
       </div>
 
-      <AccountsList />
+      <TransfersList />
     </div>
   );
 }

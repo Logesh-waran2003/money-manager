@@ -1,23 +1,41 @@
 import { NextResponse } from "next/server";
 import { db, transactions, accounts } from "@/db";
-import { eq } from "drizzle-orm";
+import { eq, isNotNull, asc, desc } from "drizzle-orm";
 import { Decimal } from "decimal.js";
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const accountId = searchParams.get("accountId");
+    const withTransfers = searchParams.get("withTransfers") === "true";
+    const sortBy = searchParams.get("sortBy") || "time";
+    const sortOrder = searchParams.get("sortOrder") || "desc";
 
-    // Filter by accountId if provided
-    const query = accountId
-      ? db
-          .select()
-          .from(transactions)
-          .where(eq(transactions.accountId, parseInt(accountId)))
-      : db.select().from(transactions);
+    // Build the query using method chaining with $
+    let queryBuilder = db.select().from(transactions).$dynamic();
+
+    // Apply filters
+    if (accountId) {
+      queryBuilder = queryBuilder.where(
+        eq(transactions.accountId, parseInt(accountId))
+      );
+    }
+
+    if (withTransfers) {
+      queryBuilder = queryBuilder.where(isNotNull(transactions.transferId));
+    }
+
+    // Apply sorting
+    if (sortBy === "time") {
+      if (sortOrder === "asc") {
+        queryBuilder = queryBuilder.orderBy(asc(transactions.time));
+      } else {
+        queryBuilder = queryBuilder.orderBy(desc(transactions.time));
+      }
+    }
 
     // Execute the query
-    const allTransactions = await query.execute();
+    const allTransactions = await queryBuilder;
 
     return NextResponse.json(allTransactions);
   } catch (error) {

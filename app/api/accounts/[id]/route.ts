@@ -7,7 +7,8 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const accountId = parseInt(params.id);
+    const { id } = params;
+    const accountId = parseInt(id);
     const account = await db
       .select()
       .from(accounts)
@@ -32,7 +33,8 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    const id = parseInt(params.id);
+    const { id } = params;
+    const accountId = parseInt(id);
     const { name, type, balance, description } = await request.json();
 
     const updatedData: Record<string, any> = {};
@@ -51,7 +53,7 @@ export async function PUT(
     const updatedAccount = await db
       .update(accounts)
       .set(updatedData)
-      .where(eq(accounts.id, id))
+      .where(eq(accounts.id, accountId))
       .returning();
 
     if (!updatedAccount.length) {
@@ -73,7 +75,8 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const accountId = parseInt(params.id);
+    const { id } = params;
+    const accountId = parseInt(id);
     const deletedAccount = await db
       .delete(accounts)
       .where(eq(accounts.id, accountId))

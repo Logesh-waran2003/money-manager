@@ -1,5 +1,4 @@
 import { Metadata } from "next";
-import Link from "next/link";
 import AccountForm from "@/components/accounts/account-form";
 
 export const metadata: Metadata = {
@@ -11,12 +10,11 @@ export default function NewAccountPage() {
   return (
     <div className="container mx-auto p-6">
       <div className="mb-6">
-        <Link href="/accounts" className="text-blue-600 hover:underline">
-          ← Back to Accounts
-        </Link>
+        <h1 className="text-3xl font-bold">New Account</h1>
+        <p className="text-muted-foreground">
+          Enter the details of your account
+        </p>
       </div>
-
-      <h1 className="text-3xl font-bold mb-6">Create New Account</h1>
 
       <div className="max-w-2xl">
         <AccountForm />
