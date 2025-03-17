@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db, transactions, accounts } from "@/db";
+import { db, transactions, accounts, categories, paymentApps } from "@/db";
 import { eq } from "drizzle-orm";
 import { Decimal } from "decimal.js";
 
@@ -10,8 +10,22 @@ export async function GET(
   try {
     const transactionId = parseInt(params.id);
     const transaction = await db
-      .select()
+      .select({
+        id: transactions.id,
+        accountId: transactions.accountId,
+        amount: transactions.amount,
+        categoryId: transactions.categoryId,
+        categoryName: categories.name, // Select category name
+        description: transactions.description,
+        paymentAppId: transactions.paymentAppId,
+        paymentAppName: paymentApps.name, // Select payment app name
+        time: transactions.time,
+        transferId: transactions.transferId,
+        recurringSpendId: transactions.recurringSpendId,
+      })
       .from(transactions)
+      .leftJoin(categories, eq(transactions.categoryId, categories.id))
+      .leftJoin(paymentApps, eq(transactions.paymentAppId, paymentApps.id))
       .where(eq(transactions.id, transactionId));
 
     if (!transaction.length) {
@@ -37,7 +51,7 @@ export async function PUT(
 ) {
   try {
     const transactionId = parseInt(params.id);
-    const { accountId, amount, category, description, appUsed, time } =
+    const { accountId, amount, categoryId, description, paymentAppId, time } =
       await request.json();
 
     if (!accountId || amount === undefined) {
@@ -104,9 +118,9 @@ export async function PUT(
         .set({
           accountId,
           amount,
-          category,
+          categoryId, // Changed from category to categoryId
           description,
-          appUsed,
+          paymentAppId, // Changed from appUsed to paymentAppId
           time: time ? new Date(time) : undefined,
         })
         .where(eq(transactions.id, transactionId))

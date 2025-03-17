@@ -8,9 +8,23 @@ import {
   pgEnum,
 } from "drizzle-orm/pg-core";
 
-// Enums
+// Enums - keep only the necessary ones
 export const accountTypeEnum = pgEnum("account_type", ["debit", "credit"]);
 export const creditTypeEnum = pgEnum("credit_type", ["lent", "borrowed"]);
+
+// Categories table instead of enum
+export const categories = pgTable("categories", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 50 }).notNull().unique(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Payment apps table instead of enum
+export const paymentApps = pgTable("payment_apps", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 50 }).notNull().unique(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
 
 // Accounts
 export const accounts = pgTable("accounts", {
@@ -23,16 +37,16 @@ export const accounts = pgTable("accounts", {
   description: varchar("description", { length: 255 }),
 });
 
-// Transactions
+// Transactions - update to use foreign keys instead of enums
 export const transactions = pgTable("transactions", {
   id: serial("id").primaryKey(),
   accountId: integer("account_id")
     .notNull()
     .references(() => accounts.id),
   amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
-  category: varchar("category", { length: 255 }),
+  categoryId: integer("category_id").references(() => categories.id),
   description: varchar("description", { length: 255 }),
-  appUsed: varchar("app_used", { length: 255 }),
+  paymentAppId: integer("payment_app_id").references(() => paymentApps.id),
   time: timestamp("time").notNull(),
   transferId: integer("transfer_id"),
   recurringSpendId: integer("recurring_spend_id").references(

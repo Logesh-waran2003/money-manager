@@ -11,9 +11,11 @@ interface Transaction {
   id: number;
   accountId: number;
   amount: string;
-  category?: string;
+  categoryId?: number;
+  categoryName?: string; // Changed from category to categoryName
   description?: string;
-  appUsed?: string;
+  paymentAppId?: number;
+  paymentAppName?: string; // Changed from appUsed to paymentAppName
   time: Date;
   transferId?: number | null;
   recurringSpendId?: number | null;

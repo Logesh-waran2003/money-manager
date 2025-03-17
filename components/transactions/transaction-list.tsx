@@ -33,9 +33,11 @@ interface Transaction {
   id: number;
   accountId: number;
   amount: string;
-  category?: string;
+  categoryId?: number;
+  categoryName?: string; // Changed from category to categoryName
   description?: string;
-  appUsed?: string;
+  paymentAppId?: number;
+  paymentAppName?: string; // Changed from appUsed to paymentAppName
   time: Date;
   transferId?: number | null;
   recurringSpendId?: number | null;
@@ -62,7 +64,7 @@ export default function TransactionList({
 
   // Get unique categories for filter dropdown
   const categories = [
-    ...new Set(transactions.map((t) => t.category).filter(Boolean)),
+    ...new Set(transactions.map((t) => t.categoryName).filter(Boolean)),
   ];
 
   // Filter transactions based on search query and category filter
@@ -72,12 +74,17 @@ export default function TransactionList({
       transaction.description
         ?.toLowerCase()
         .includes(searchQuery.toLowerCase()) ||
-      transaction.category?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      transaction.appUsed?.toLowerCase().includes(searchQuery.toLowerCase());
+      transaction.categoryName
+        ?.toLowerCase()
+        .includes(searchQuery.toLowerCase()) ||
+      transaction.paymentAppName
+        ?.toLowerCase()
+        .includes(searchQuery.toLowerCase());
 
     const matchesCategory =
       categoryFilter.length === 0 ||
-      (transaction.category && categoryFilter.includes(transaction.category));
+      (transaction.categoryName &&
+        categoryFilter.includes(transaction.categoryName));
 
     return matchesSearch && matchesCategory;
   });
@@ -202,10 +209,10 @@ export default function TransactionList({
                     )}
                     <TableCell>{transaction.description || "-"}</TableCell>
                     <TableCell>
-                      {transaction.category ||
+                      {transaction.categoryName ||
                         (isTransfer(transaction) ? "Transfer" : "-")}
                     </TableCell>
-                    <TableCell>{transaction.appUsed || "-"}</TableCell>
+                    <TableCell>{transaction.paymentAppName || "-"}</TableCell>
                     <TableCell
                       className={`text-right font-medium ${
                         parseFloat(transaction.amount) < 0

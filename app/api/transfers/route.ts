@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { db, transactions, accounts } from "@/db";
+import { db } from "@/db";
+import { accounts, transactions } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { Decimal } from "decimal.js";
 

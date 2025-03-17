@@ -14,7 +14,7 @@ type Transaction = {
   id: number;
   accountId: number;
   amount: string;
-  category?: string;
+  categoryName?: string;
   description?: string;
   time: Date;
 };
@@ -137,7 +137,9 @@ export default function Dashboard() {
                     <td className="px-4 py-3">
                       {transaction.description || "-"}
                     </td>
-                    <td className="px-4 py-3">{transaction.category || "-"}</td>
+                    <td className="px-4 py-3">
+                      {transaction.categoryName || "-"}
+                    </td>
                     <td
                       className={`px-4 py-3 text-right ${
                         parseFloat(transaction.amount) >= 0

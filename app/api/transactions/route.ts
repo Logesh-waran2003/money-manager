@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db, transactions, accounts } from "@/db";
+import { db, transactions, accounts, categories, paymentApps } from "@/db";
 import { eq, isNotNull, asc, desc } from "drizzle-orm";
 import { Decimal } from "decimal.js";
 
@@ -12,7 +12,24 @@ export async function GET(request: Request) {
     const sortOrder = searchParams.get("sortOrder") || "desc";
 
     // Build the query using method chaining with $
-    let queryBuilder = db.select().from(transactions).$dynamic();
+    let queryBuilder = db
+      .select({
+        id: transactions.id,
+        accountId: transactions.accountId,
+        amount: transactions.amount,
+        categoryId: transactions.categoryId,
+        categoryName: categories.name, // Select category name
+        description: transactions.description,
+        paymentAppId: transactions.paymentAppId,
+        paymentAppName: paymentApps.name, // Select payment app name
+        time: transactions.time,
+        transferId: transactions.transferId,
+        recurringSpendId: transactions.recurringSpendId,
+      })
+      .from(transactions)
+      .leftJoin(categories, eq(transactions.categoryId, categories.id))
+      .leftJoin(paymentApps, eq(transactions.paymentAppId, paymentApps.id))
+      .$dynamic();
 
     // Apply filters
     if (accountId) {
@@ -52,9 +69,9 @@ export async function POST(request: Request) {
     const {
       accountId,
       amount,
-      category,
+      categoryId, // Changed from category to categoryId
       description,
-      appUsed,
+      paymentAppId, // Changed from appUsed to paymentAppId
       time = new Date(),
     } = await request.json();
 
@@ -73,9 +90,9 @@ export async function POST(request: Request) {
         .values({
           accountId,
           amount,
-          category,
+          categoryId, // Using categoryId directly
           description,
-          appUsed,
+          paymentAppId, // Changed from appUsed to paymentAppId
           time: new Date(time),
         })
         .returning();

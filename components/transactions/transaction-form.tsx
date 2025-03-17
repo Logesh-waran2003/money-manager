@@ -39,9 +39,9 @@ const transactionFormSchema = z.object({
   amount: z.string().refine((val) => !isNaN(parseFloat(val)), {
     message: "Amount must be a number",
   }),
-  category: z.string().optional(),
+  categoryId: z.string().optional().nullable(),
   description: z.string().optional(),
-  appUsed: z.string().optional(),
+  paymentAppId: z.string().optional().nullable(),
   time: z.date(),
 });
 
@@ -55,12 +55,24 @@ interface Account {
   description?: string;
 }
 
+interface Category {
+  id: number;
+  name: string;
+}
+
+interface PaymentApp {
+  id: number;
+  name: string;
+}
+
 export default function TransactionForm({
   initialValues,
   transactionId,
 }: {
   initialValues?: Omit<TransactionFormValues, "accountId"> & {
     accountId: number;
+    categoryName?: string;
+    paymentAppName?: string;
   };
   transactionId?: string;
 }) {
@@ -72,6 +84,8 @@ export default function TransactionForm({
   const [isDeletingTransaction, setIsDeletingTransaction] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [paymentApps, setPaymentApps] = useState<PaymentApp[]>([]);
   const [isLoadingAccounts, setIsLoadingAccounts] = useState(true);
 
   const isEditing = !!transactionId;
@@ -83,36 +97,51 @@ export default function TransactionForm({
           ...initialValues,
           accountId: initialValues.accountId.toString(),
           time: new Date(initialValues.time),
+          // Convert null or undefined to "0" for the select fields
+          categoryId: initialValues.categoryId?.toString() || "0",
+          paymentAppId: initialValues.paymentAppId?.toString() || "0",
         }
       : {
           accountId: defaultAccountId || "",
           amount: "",
-          category: "",
+          categoryId: "0", // Use "0" instead of empty string
           description: "",
-          appUsed: "",
+          paymentAppId: "0", // Use "0" instead of empty string
           time: new Date(),
         },
   });
 
-  // Fetch accounts
+  // Fetch accounts, categories, and payment apps
   useEffect(() => {
-    async function fetchAccounts() {
+    async function fetchData() {
       try {
-        const response = await fetch("/api/accounts");
-        if (!response.ok) {
-          throw new Error("Failed to fetch accounts");
-        }
-        const data = await response.json();
-        setAccounts(data);
+        setIsLoadingAccounts(true);
+        const [accountsRes, categoriesRes, paymentAppsRes] = await Promise.all([
+          fetch("/api/accounts"),
+          fetch("/api/categories"),
+          fetch("/api/payment-apps"),
+        ]);
+
+        if (!accountsRes.ok) throw new Error("Failed to fetch accounts");
+        if (!categoriesRes.ok) throw new Error("Failed to fetch categories");
+        if (!paymentAppsRes.ok) throw new Error("Failed to fetch payment apps");
+
+        const accounts = await accountsRes.json();
+        const categories = await categoriesRes.json();
+        const paymentApps = await paymentAppsRes.json();
+
+        setAccounts(accounts);
+        setCategories(categories);
+        setPaymentApps(paymentApps);
       } catch (err) {
-        console.error("Error fetching accounts:", err);
-        setError("Failed to load accounts. Please try again.");
+        console.error("Error fetching data:", err);
+        setError("Failed to load data. Please try again.");
       } finally {
         setIsLoadingAccounts(false);
       }
     }
 
-    fetchAccounts();
+    fetchData();
   }, []);
 
   async function onSubmit(data: TransactionFormValues) {
@@ -125,6 +154,12 @@ export default function TransactionForm({
         : "/api/transactions";
       const method = isEditing ? "PUT" : "POST";
 
+      // Convert "0" value back to null for API submission
+      const categoryId =
+        data.categoryId === "0" ? null : parseInt(data.categoryId || "0");
+      const paymentAppId =
+        data.paymentAppId === "0" ? null : parseInt(data.paymentAppId || "0");
+
       const response = await fetch(url, {
         method,
         headers: {
@@ -133,6 +168,8 @@ export default function TransactionForm({
         body: JSON.stringify({
           ...data,
           accountId: parseInt(data.accountId),
+          categoryId,
+          paymentAppId,
         }),
       });
 
@@ -193,7 +230,7 @@ export default function TransactionForm({
               <FormLabel>Account</FormLabel>
               <Select
                 onValueChange={field.onChange}
-                defaultValue={field.value}
+                defaultValue={field.value || undefined}
                 disabled={isLoadingAccounts}
               >
                 <FormControl>
@@ -235,17 +272,32 @@ export default function TransactionForm({
 
         <FormField
           control={form.control}
-          name="category"
+          name="categoryId"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Category (Optional)</FormLabel>
-              <FormControl>
-                <Input
-                  placeholder="e.g., Food, Travel, Salary"
-                  {...field}
-                  value={field.value || ""}
-                />
-              </FormControl>
+              <FormLabel>Category</FormLabel>
+              <Select
+                onValueChange={field.onChange}
+                defaultValue={field.value || undefined}
+                disabled={isLoadingAccounts}
+              >
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select category (optional)" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="0">None</SelectItem>
+                  {categories.map((category) => (
+                    <SelectItem
+                      key={category.id}
+                      value={category.id.toString()}
+                    >
+                      {category.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <FormMessage />
             </FormItem>
           )}
@@ -271,17 +323,29 @@ export default function TransactionForm({
 
         <FormField
           control={form.control}
-          name="appUsed"
+          name="paymentAppId"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>App Used (Optional)</FormLabel>
-              <FormControl>
-                <Input
-                  placeholder="e.g., Amazon, Swiggy"
-                  {...field}
-                  value={field.value || ""}
-                />
-              </FormControl>
+              <FormLabel>Payment App</FormLabel>
+              <Select
+                onValueChange={field.onChange}
+                defaultValue={field.value || undefined}
+                disabled={isLoadingAccounts}
+              >
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select payment app (optional)" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="0">None</SelectItem>
+                  {paymentApps.map((app) => (
+                    <SelectItem key={app.id} value={app.id.toString()}>
+                      {app.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <FormMessage />
             </FormItem>
           )}
