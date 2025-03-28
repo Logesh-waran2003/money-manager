@@ -3,16 +3,39 @@ version: '3.8'
 services:
   postgres:
     image: postgres:15
-    container_name: money-manager-db
+    container_name: money-manager-db-new
     restart: always
     ports:
-      - "5432:5432"
+      - "5434:5432"
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: money_manager
+      POSTGRES_DB: money_manager_new
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data_new:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: money-manager-app
+    restart: always
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/money_manager_new
+      - NODE_ENV=development
+    depends_on:
+      postgres:
+        condition: service_healthy
 
 volumes:
-  postgres_data:
+  postgres_data_new:
