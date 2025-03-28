@@ -37,7 +37,7 @@ export async function PUT(
     const accountId = parseInt(id);
     const { name, type, balance, description } = await request.json();
 
-    const updatedData: Record<string, any> = {};
+    const updatedData: Record<string, unknown> = {};
     if (name !== undefined) updatedData.name = name;
     if (type !== undefined) updatedData.type = type;
     if (balance !== undefined) updatedData.balance = balance;

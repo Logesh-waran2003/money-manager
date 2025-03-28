@@ -1,4 +1,5 @@
 import { Metadata } from "next";
+import { Suspense } from "react";
 import TransactionForm from "@/components/transactions/transaction-form";
 
 export const metadata: Metadata = {
@@ -17,7 +18,9 @@ export default function NewTransactionPage() {
       </div>
 
       <div className="max-w-2xl">
-        <TransactionForm />
+        <Suspense fallback={<div>Loading form...</div>}>
+          <TransactionForm />
+        </Suspense>
       </div>
     </div>
   );

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { formatCurrency } from "@/lib/utils";
+import Link from "next/link";
 
 type Account = {
   id: number;
@@ -72,9 +73,9 @@ export default function Dashboard() {
       <div className="mb-8">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-2xl font-bold">Accounts</h2>
-          <a href="/accounts/new" className="text-blue-500 hover:underline">
+          <Link href="/accounts/new" className="text-blue-500 hover:underline">
             + Add Account
-          </a>
+          </Link>
         </div>
 
         {accounts.length === 0 ? (

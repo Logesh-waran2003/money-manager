@@ -30,7 +30,7 @@ export default async function EditAccountPage({
 }: {
   params: { id: string };
 }) {
-  const { id } = await params;
+  const { id } = params;
   const account = await getAccount(id);
 
   if (!account) {

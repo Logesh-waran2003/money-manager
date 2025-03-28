@@ -157,7 +157,7 @@ export async function DELETE(
   try {
     const transactionId = parseInt(params.id);
 
-    const result = await db.transaction(async (tx) => {
+    await db.transaction(async (tx) => {
       // Get the transaction
       const transactionResult = await tx
         .select()
