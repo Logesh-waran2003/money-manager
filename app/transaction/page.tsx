@@ -9,13 +9,16 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { format } from "date-fns";
-import { CalendarIcon, Home } from "lucide-react";
+import { CalendarIcon, Home, ArrowLeft, CheckCircle2 } from "lucide-react";
 import AccountSelector from "@/components/account-selector";
 import TransactionFormFields from "@/components/transaction-form-fields";
 import PaymentTypeSelector from "@/components/payment-type-selector";
+import CategorySelector from "@/components/category-selector";
+import { FormSection } from "@/components/form-section";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { useTheme } from "@/components/theme-provider";
+import { CardGlow, GradientHeading, AnimatedButton, PageTransition } from "@/components/ui-enhancements";
 
 export default function TransactionForm() {
   const { toast } = useToast();
@@ -29,6 +32,7 @@ export default function TransactionForm() {
   const [direction, setDirection] = useState("sent");
   const [counterparty, setCounterparty] = useState("");
   const [appUsed, setAppUsed] = useState("");
+  const [category, setCategory] = useState("");
   
   // Transaction type toggles
   const [isCredit, setIsCredit] = useState(false);
@@ -88,6 +92,7 @@ export default function TransactionForm() {
       recurringFrequency,
       creditType,
       creditDueDate,
+      category,
     });
 
     // Prepare appropriate message based on transaction type
@@ -120,165 +125,201 @@ export default function TransactionForm() {
   };
 
   return (
-    <div className="container max-w-3xl py-10 px-4">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-center">New Transaction</h1>
-        <Link href="/">
-          <Button variant="outline" size="icon">
-            <Home className="h-5 w-5" />
-          </Button>
-        </Link>
-      </div>
-      
-      <Card className="p-6 shadow-sm border-opacity-50 bg-card">
-        <form onSubmit={handleSubmit} className="space-y-6">
+    <PageTransition>
+      <div className="min-h-screen flex items-center justify-center py-6 px-4">
+        <div className="container max-w-2xl w-full">
+          <div className="flex justify-between items-center mb-4">
+            <div className="flex items-center gap-3">
+              <Link href="/">
+                <Button variant="ghost" size="icon" className="rounded-full h-9 w-9">
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+              </Link>
+              <GradientHeading className="text-2xl">New Transaction</GradientHeading>
+            </div>
+            <Link href="/">
+              <Button variant="outline" size="icon" className="rounded-full h-9 w-9">
+                <Home className="h-4 w-4" />
+              </Button>
+            </Link>
+          </div>
+          
+          <CardGlow>
+            <Card className="p-5 md:p-6 shadow-lg border-opacity-50 bg-card relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary to-primary/30"></div>
+              <form onSubmit={handleSubmit} className="space-y-4">
           {!isTransfer ? (
-            <AccountSelector 
-              selectedAccount={selectedAccount}
-              onChange={setSelectedAccount}
-              label="Account"
-            />
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormSection title="Account Details">
               <AccountSelector 
                 selectedAccount={selectedAccount}
                 onChange={setSelectedAccount}
-                label="From Account"
+                label="Account"
               />
-              <AccountSelector 
-                selectedAccount={destinationAccount}
-                onChange={setDestinationAccount}
-                label="To Account"
-              />
-            </div>
-          )}
-
-          <TransactionFormFields
-            direction={direction}
-            setDirection={setDirection}
-            counterparty={counterparty}
-            setCounterparty={setCounterparty}
-            appUsed={appUsed}
-            setAppUsed={setAppUsed}
-            transactionType={transactionType}
-            setTransactionType={setTransactionType}
-            creditType={creditType}
-            setCreditType={setCreditType}
-            recurringName={recurringName}
-            setRecurringName={setRecurringName}
-            isCredit={isCredit}
-            setIsCredit={setIsCredit}
-            isRecurring={isRecurring}
-            setIsRecurring={setIsRecurring}
-            isTransfer={isTransfer}
-            setIsTransfer={setIsTransfer}
-          />
-
-          {/* Transaction amount and date - common for all transaction types */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Amount</label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400">$</span>
-                <Input
-                  type="number"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  placeholder="0.00"
-                  className="pl-8 bg-background border-input"
-                  required
+            </FormSection>
+          ) : (
+            <FormSection title="Transfer Details">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <AccountSelector 
+                  selectedAccount={selectedAccount}
+                  onChange={setSelectedAccount}
+                  label="From Account"
+                />
+                <AccountSelector 
+                  selectedAccount={destinationAccount}
+                  onChange={setDestinationAccount}
+                  label="To Account"
                 />
               </div>
-            </div>
-            
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Date</label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal bg-background border-input",
-                      !date && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {date ? format(date, "PPP") : <span>Pick a date</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={date}
-                    onSelect={setDate}
-                    initialFocus
+            </FormSection>
+          )}
+
+          <FormSection title="Transaction Details">
+            <TransactionFormFields
+              direction={direction}
+              setDirection={setDirection}
+              counterparty={counterparty}
+              setCounterparty={setCounterparty}
+              appUsed={appUsed}
+              setAppUsed={setAppUsed}
+              transactionType={transactionType}
+              setTransactionType={setTransactionType}
+              creditType={creditType}
+              setCreditType={setCreditType}
+              recurringName={recurringName}
+              setRecurringName={setRecurringName}
+              isCredit={isCredit}
+              setIsCredit={setIsCredit}
+              isRecurring={isRecurring}
+              setIsRecurring={setIsRecurring}
+              isTransfer={isTransfer}
+              setIsTransfer={setIsTransfer}
+            />
+          </FormSection>
+
+          {/* Transaction amount and date - common for all transaction types */}
+          <FormSection title="Amount & Date">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Amount</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400">$</span>
+                  <Input
+                    type="number"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    placeholder="0.00"
+                    className="pl-8 bg-background/50 border-border/50 focus:border-primary/50 focus:ring-primary/20"
+                    required
                   />
-                </PopoverContent>
-              </Popover>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Date</label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal bg-background/50 border-border/50",
+                        !date && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {date ? format(date, "PPP") : <span>Pick a date</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={date}
+                      onSelect={setDate}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
             </div>
-          </div>
+          </FormSection>
 
           {/* Transaction type specific additional fields */}
           {isRecurring && (
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Frequency</label>
-              <PaymentTypeSelector
-                value={recurringFrequency}
-                onChange={setRecurringFrequency}
-                options={[
-                  { value: "daily", label: "Daily" },
-                  { value: "weekly", label: "Weekly" },
-                  { value: "monthly", label: "Monthly" },
-                  { value: "quarterly", label: "Quarterly" },
-                  { value: "yearly", label: "Yearly" },
-                ]}
-              />
-            </div>
+            <FormSection title="Recurring Details">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Frequency</label>
+                <PaymentTypeSelector
+                  value={recurringFrequency}
+                  onChange={setRecurringFrequency}
+                  options={[
+                    { value: "daily", label: "Daily" },
+                    { value: "weekly", label: "Weekly" },
+                    { value: "monthly", label: "Monthly" },
+                    { value: "quarterly", label: "Quarterly" },
+                    { value: "yearly", label: "Yearly" },
+                  ]}
+                />
+              </div>
+            </FormSection>
           )}
           
           {isCredit && (
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Due Date</label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start text-left font-normal bg-background border-input"
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {creditDueDate ? (
-                      format(creditDueDate, "PPP")
-                    ) : (
-                      <span>Pick a date</span>
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={creditDueDate}
-                    onSelect={setCreditDueDate}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
+            <FormSection title="Credit Details">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Due Date</label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start text-left font-normal bg-background/50 border-border/50"
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {creditDueDate ? (
+                        format(creditDueDate, "PPP")
+                      ) : (
+                        <span>Pick a date</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={creditDueDate}
+                      onSelect={setCreditDueDate}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </FormSection>
           )}
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Description</label>
-            <Textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Enter transaction details..."
-              className="resize-none bg-background border-input"
-              rows={3}
-            />
-          </div>
+          <FormSection title="Additional Information">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Description</label>
+              <Textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Enter transaction details..."
+                className="resize-none bg-background/50 border-border/50 focus:border-primary/50 focus:ring-primary/20"
+                rows={2}
+              />
+            </div>
 
-          <Button type="submit" className="w-full">Save Transaction</Button>
+            <CategorySelector
+              selectedCategory={category}
+              onChange={setCategory}
+            />
+          </FormSection>
+
+          <AnimatedButton type="submit" className="w-full mt-5 py-3 text-base font-medium">
+            <CheckCircle2 className="mr-2 h-4 w-4" />
+            Save Transaction
+          </AnimatedButton>
         </form>
       </Card>
+    </CardGlow>
     </div>
+  </div>
+  </PageTransition>
   );
 }
