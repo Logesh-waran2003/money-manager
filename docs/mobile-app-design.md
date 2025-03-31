@@ -165,6 +165,9 @@
 - Set up mobile-optimized UI components
 - Implement responsive layouts for different screen sizes
 - Build navigation structure with gestures
+- Configure Zustand for state management
+- Set up TanStack Query for data fetching with offline support
+- Connect to Prisma ORM backend
 
 ### Phase 2: Key Mobile Features
 - Dashboard with account overview

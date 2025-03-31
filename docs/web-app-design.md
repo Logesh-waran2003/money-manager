@@ -153,6 +153,7 @@
 - Implement responsive layouts
 - Configure Zustand for state management
 - Set up TanStack Query for data fetching and caching
+- Set up PostgreSQL database with Docker Compose
 - Initialize Prisma ORM for database schema
 
 ### Phase 2: Key Pages

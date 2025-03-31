@@ -14,6 +14,7 @@ This roadmap outlines the phased approach to implementing the Money Manager appl
 ### Core Infrastructure
 - [ ] Set up project structure for web app
 - [ ] Configure build tools and development environment
+- [ ] Set up PostgreSQL database with Docker Compose
 - [ ] Implement state management with Zustand and TanStack Query
 - [ ] Create API service layer
 - [ ] Set up database schema with Prisma ORM

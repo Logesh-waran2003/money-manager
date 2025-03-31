@@ -1,0 +1,145 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  password      String
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts      Account[]
+  transactions  Transaction[]
+  categories    Category[]
+  recurringPayments RecurringPayment[]
+  credits       Credit[]
+}
+
+model Account {
+  id            String    @id @default(cuid())
+  userId        String
+  name          String
+  type          String    // debit, credit, bank, cash, investment
+  balance       Float     @default(0)
+  currency      String    @default("USD")
+  isDefault     Boolean   @default(false)
+  accountNumber String?
+  institution   String?
+  notes         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions  Transaction[]
+  
+  @@index([userId])
+}
+
+model Transaction {
+  id            String    @id @default(cuid())
+  userId        String
+  accountId     String
+  amount        Float
+  description   String?
+  date          DateTime
+  type          String    // income, expense, transfer, credit, recurring
+  categoryId    String?
+  counterparty  String?
+  appUsed       String?
+  notes         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // For transfers
+  toAccountId   String?
+  
+  // For recurring transactions
+  recurringPaymentId String?
+  
+  // For credit transactions
+  creditId      String?
+
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account       Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  category      Category? @relation(fields: [categoryId], references: [id])
+  recurringPayment RecurringPayment? @relation(fields: [recurringPaymentId], references: [id])
+  credit        Credit?   @relation(fields: [creditId], references: [id])
+  
+  @@index([userId])
+  @@index([accountId])
+  @@index([categoryId])
+  @@index([date])
+}
+
+model Category {
+  id            String    @id @default(cuid())
+  userId        String
+  name          String
+  icon          String?
+  color         String?
+  isDefault     Boolean   @default(false)
+  type          String    // income, expense
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions  Transaction[]
+  
+  @@index([userId])
+  @@unique([userId, name])
+}
+
+model RecurringPayment {
+  id            String    @id @default(cuid())
+  userId        String
+  name          String
+  amount        Float
+  frequency     String    // daily, weekly, monthly, quarterly, yearly
+  startDate     DateTime
+  endDate       DateTime?
+  nextDueDate   DateTime
+  accountId     String?
+  categoryId    String?
+  description   String?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions  Transaction[]
+  
+  @@index([userId])
+  @@index([nextDueDate])
+}
+
+model Credit {
+  id            String    @id @default(cuid())
+  userId        String
+  name          String
+  amount        Float
+  type          String    // lent, borrowed
+  counterparty  String
+  dueDate       DateTime?
+  isPaid        Boolean   @default(false)
+  notes         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions  Transaction[]
+  
+  @@index([userId])
+  @@index([dueDate])
+}
