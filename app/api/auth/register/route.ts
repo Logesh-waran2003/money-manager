@@ -1,10 +1,7 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-import { isValidEmail } from '@/lib/utils/validation';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/db';
+import { sign } from 'jsonwebtoken';
 
 export async function POST(request: Request) {
   try {
@@ -13,21 +10,7 @@ export async function POST(request: Request) {
     // Validate input
     if (!name || !email || !password) {
       return NextResponse.json(
-        { message: 'Missing required fields' },
-        { status: 400 }
-      );
-    }
-
-    if (!isValidEmail(email)) {
-      return NextResponse.json(
-        { message: 'Invalid email address' },
-        { status: 400 }
-      );
-    }
-
-    if (password.length < 8) {
-      return NextResponse.json(
-        { message: 'Password must be at least 8 characters' },
+        { error: 'Name, email, and password are required' },
         { status: 400 }
       );
     }
@@ -39,7 +22,7 @@ export async function POST(request: Request) {
 
     if (existingUser) {
       return NextResponse.json(
-        { message: 'User already exists with this email' },
+        { error: 'User with this email already exists' },
         { status: 409 }
       );
     }
@@ -56,56 +39,65 @@ export async function POST(request: Request) {
       },
     });
 
-    // Create default categories
-    await createDefaultCategories(user.id);
-
     // Generate JWT token
-    const token = jwt.sign(
+    const token = sign(
       { userId: user.id },
       process.env.JWT_SECRET || 'fallback-secret',
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 
-    // Return user data (excluding password)
-    const { password: _, ...userWithoutPassword } = user;
+    // Create default categories for the user
+    try {
+      await createDefaultCategories(user.id);
+    } catch (categoryError) {
+      console.error('Error creating default categories:', categoryError);
+      // Continue with user creation even if categories fail
+    }
 
+    // Return user data (excluding password) and token
     return NextResponse.json({
-      user: userWithoutPassword,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      },
       token,
     });
   } catch (error) {
     console.error('Registration error:', error);
     return NextResponse.json(
-      { message: 'An error occurred during registration' },
+      { error: 'Failed to register user' },
       { status: 500 }
     );
   }
 }
 
-// Helper function to create default categories for new users
+// Helper function to create default categories for a new user
 async function createDefaultCategories(userId: string) {
   const defaultCategories = [
     // Income categories
-    { name: 'Salary', icon: 'briefcase', color: '#10B981', type: 'income', isDefault: true },
-    { name: 'Freelance', icon: 'laptop', color: '#10B981', type: 'income', isDefault: true },
-    { name: 'Investments', icon: 'trending-up', color: '#10B981', type: 'income', isDefault: true },
-    { name: 'Gifts', icon: 'gift', color: '#10B981', type: 'income', isDefault: true },
-    { name: 'Other Income', icon: 'plus-circle', color: '#10B981', type: 'income', isDefault: true },
+    { name: 'Salary', isIncome: true, color: '#4CAF50', icon: 'briefcase' },
+    { name: 'Freelance', isIncome: true, color: '#2196F3', icon: 'code' },
+    { name: 'Investments', isIncome: true, color: '#9C27B0', icon: 'trending-up' },
+    { name: 'Gifts', isIncome: true, color: '#E91E63', icon: 'gift' },
+    { name: 'Other Income', isIncome: true, color: '#607D8B', icon: 'plus-circle' },
     
     // Expense categories
-    { name: 'Food', icon: 'utensils', color: '#EF4444', type: 'expense', isDefault: true },
-    { name: 'Housing', icon: 'home', color: '#EF4444', type: 'expense', isDefault: true },
-    { name: 'Transportation', icon: 'car', color: '#EF4444', type: 'expense', isDefault: true },
-    { name: 'Entertainment', icon: 'film', color: '#EF4444', type: 'expense', isDefault: true },
-    { name: 'Shopping', icon: 'shopping-bag', color: '#EF4444', type: 'expense', isDefault: true },
-    { name: 'Health', icon: 'heart', color: '#EF4444', type: 'expense', isDefault: true },
-    { name: 'Education', icon: 'book', color: '#EF4444', type: 'expense', isDefault: true },
-    { name: 'Personal', icon: 'user', color: '#EF4444', type: 'expense', isDefault: true },
-    { name: 'Travel', icon: 'plane', color: '#EF4444', type: 'expense', isDefault: true },
-    { name: 'Bills', icon: 'file-text', color: '#EF4444', type: 'expense', isDefault: true },
-    { name: 'Other Expenses', icon: 'more-horizontal', color: '#EF4444', type: 'expense', isDefault: true },
+    { name: 'Housing', isIncome: false, color: '#FF5722', icon: 'home' },
+    { name: 'Food & Dining', isIncome: false, color: '#FF9800', icon: 'utensils' },
+    { name: 'Transportation', isIncome: false, color: '#795548', icon: 'car' },
+    { name: 'Utilities', isIncome: false, color: '#607D8B', icon: 'zap' },
+    { name: 'Entertainment', isIncome: false, color: '#9C27B0', icon: 'film' },
+    { name: 'Shopping', isIncome: false, color: '#2196F3', icon: 'shopping-bag' },
+    { name: 'Health & Medical', isIncome: false, color: '#F44336', icon: 'activity' },
+    { name: 'Personal Care', isIncome: false, color: '#E91E63', icon: 'user' },
+    { name: 'Education', isIncome: false, color: '#3F51B5', icon: 'book' },
+    { name: 'Other Expenses', isIncome: false, color: '#607D8B', icon: 'more-horizontal' },
   ];
 
+  // Create categories one by one instead of using createMany
   for (const category of defaultCategories) {
     await prisma.category.create({
       data: {

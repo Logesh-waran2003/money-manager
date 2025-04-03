@@ -1,189 +1,101 @@
-import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/db';
+import { getAuthUser } from '@/lib/auth';
 
-const prisma = new PrismaClient();
-
-// GET /api/categories/[id] - Get a specific category
+// GET a specific category by ID
 export async function GET(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    
-    if (!session?.user) {
-      return NextResponse.json(
-        { message: 'Unauthorized' },
-        { status: 401 }
-      );
+    const user = await getAuthUser(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const category = await prisma.category.findUnique({
       where: {
         id: params.id,
+        userId: user.id,
+      },
+      include: {
+        subCategories: true,
       },
     });
 
     if (!category) {
-      return NextResponse.json(
-        { message: 'Category not found' },
-        { status: 404 }
-      );
-    }
-
-    // Check if the category belongs to the authenticated user
-    if (category.userId !== session.user.id) {
-      return NextResponse.json(
-        { message: 'Unauthorized' },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: 'Category not found' }, { status: 404 });
     }
 
     return NextResponse.json(category);
   } catch (error) {
     console.error('Error fetching category:', error);
-    return NextResponse.json(
-      { message: 'An error occurred while fetching the category' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to fetch category' }, { status: 500 });
   }
 }
 
-// PUT /api/categories/[id] - Update a category
+// UPDATE a category by ID
 export async function PUT(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getAuthUser(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const data = await request.json();
     
-    if (!session?.user) {
-      return NextResponse.json(
-        { message: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
-    // Check if the category exists and belongs to the user
-    const existingCategory = await prisma.category.findUnique({
-      where: {
-        id: params.id,
-      },
-    });
-
-    if (!existingCategory) {
-      return NextResponse.json(
-        { message: 'Category not found' },
-        { status: 404 }
-      );
-    }
-
-    if (existingCategory.userId !== session.user.id) {
-      return NextResponse.json(
-        { message: 'Unauthorized' },
-        { status: 403 }
-      );
-    }
-
-    const { name, icon, color } = await request.json();
-
-    // Validate required fields
-    if (!name) {
-      return NextResponse.json(
-        { message: 'Name is required' },
-        { status: 400 }
-      );
-    }
-
-    // Check if another category with the same name already exists for this user
-    if (name !== existingCategory.name) {
-      const duplicateCategory = await prisma.category.findFirst({
+    // If parentId is provided, verify it exists and is not the category itself
+    if (data.parentId) {
+      if (data.parentId === params.id) {
+        return NextResponse.json({ error: 'Category cannot be its own parent' }, { status: 400 });
+      }
+      
+      const parentCategory = await prisma.category.findUnique({
         where: {
-          userId: session.user.id,
-          name,
-          id: {
-            not: params.id,
-          },
+          id: data.parentId,
+          userId: user.id,
         },
       });
 
-      if (duplicateCategory) {
-        return NextResponse.json(
-          { message: 'A category with this name already exists' },
-          { status: 409 }
-        );
+      if (!parentCategory) {
+        return NextResponse.json({ error: 'Parent category not found' }, { status: 404 });
       }
     }
 
     // Update the category
-    const updatedCategory = await prisma.category.update({
+    const category = await prisma.category.update({
       where: {
         id: params.id,
+        userId: user.id,
       },
-      data: {
-        name,
-        icon,
-        color,
+      data,
+      include: {
+        subCategories: true,
       },
     });
 
-    return NextResponse.json(updatedCategory);
+    return NextResponse.json(category);
   } catch (error) {
     console.error('Error updating category:', error);
-    return NextResponse.json(
-      { message: 'An error occurred while updating the category' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to update category' }, { status: 500 });
   }
 }
 
-// DELETE /api/categories/[id] - Delete a category
+// DELETE a category by ID
 export async function DELETE(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    
-    if (!session?.user) {
-      return NextResponse.json(
-        { message: 'Unauthorized' },
-        { status: 401 }
-      );
+    const user = await getAuthUser(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check if the category exists and belongs to the user
-    const existingCategory = await prisma.category.findUnique({
-      where: {
-        id: params.id,
-      },
-    });
-
-    if (!existingCategory) {
-      return NextResponse.json(
-        { message: 'Category not found' },
-        { status: 404 }
-      );
-    }
-
-    if (existingCategory.userId !== session.user.id) {
-      return NextResponse.json(
-        { message: 'Unauthorized' },
-        { status: 403 }
-      );
-    }
-
-    // Check if this is a default category
-    if (existingCategory.isDefault) {
-      return NextResponse.json(
-        { message: 'Cannot delete a default category' },
-        { status: 400 }
-      );
-    }
-
-    // Check if there are any transactions using this category
+    // Check if there are any transactions associated with this category
     const transactionCount = await prisma.transaction.count({
       where: {
         categoryId: params.id,
@@ -191,25 +103,35 @@ export async function DELETE(
     });
 
     if (transactionCount > 0) {
-      return NextResponse.json(
-        { message: 'Cannot delete a category that is being used by transactions' },
-        { status: 400 }
-      );
+      return NextResponse.json({ 
+        error: 'Cannot delete category with associated transactions. Please reassign the transactions to another category first.' 
+      }, { status: 400 });
+    }
+
+    // Check if there are any subcategories
+    const subCategoryCount = await prisma.category.count({
+      where: {
+        parentId: params.id,
+      },
+    });
+
+    if (subCategoryCount > 0) {
+      return NextResponse.json({ 
+        error: 'Cannot delete category with subcategories. Please delete or reassign the subcategories first.' 
+      }, { status: 400 });
     }
 
     // Delete the category
     await prisma.category.delete({
       where: {
         id: params.id,
+        userId: user.id,
       },
     });
 
-    return NextResponse.json({ message: 'Category deleted successfully' });
+    return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error deleting category:', error);
-    return NextResponse.json(
-      { message: 'An error occurred while deleting the category' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to delete category' }, { status: 500 });
   }
 }

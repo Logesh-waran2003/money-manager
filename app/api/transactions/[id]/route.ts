@@ -1,317 +1,220 @@
-import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/db';
+import { getAuthUser } from '@/lib/auth';
 
-const prisma = new PrismaClient();
-
-// GET /api/transactions/[id] - Get a specific transaction
+// GET a specific transaction by ID
 export async function GET(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    
-    if (!session?.user) {
-      return NextResponse.json(
-        { message: 'Unauthorized' },
-        { status: 401 }
-      );
+    const user = await getAuthUser(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const transaction = await prisma.transaction.findUnique({
       where: {
         id: params.id,
+        userId: user.id,
       },
       include: {
-        account: {
-          select: {
-            name: true,
-            type: true,
-          },
-        },
-        category: {
-          select: {
-            name: true,
-            icon: true,
-            color: true,
-          },
-        },
+        account: true,
+        toAccount: true,
+        category: true,
       },
     });
 
     if (!transaction) {
-      return NextResponse.json(
-        { message: 'Transaction not found' },
-        { status: 404 }
-      );
-    }
-
-    // Check if the transaction belongs to the authenticated user
-    if (transaction.userId !== session.user.id) {
-      return NextResponse.json(
-        { message: 'Unauthorized' },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
     }
 
     return NextResponse.json(transaction);
   } catch (error) {
     console.error('Error fetching transaction:', error);
-    return NextResponse.json(
-      { message: 'An error occurred while fetching the transaction' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to fetch transaction' }, { status: 500 });
   }
 }
 
-// PUT /api/transactions/[id] - Update a transaction
+// UPDATE a transaction by ID
 export async function PUT(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    
-    if (!session?.user) {
-      return NextResponse.json(
-        { message: 'Unauthorized' },
-        { status: 401 }
-      );
+    const user = await getAuthUser(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get the existing transaction
-    const existingTransaction = await prisma.transaction.findUnique({
+    const data = await request.json();
+    
+    // Get the original transaction to calculate balance adjustments
+    const originalTransaction = await prisma.transaction.findUnique({
       where: {
         id: params.id,
+        userId: user.id,
       },
     });
 
-    if (!existingTransaction) {
-      return NextResponse.json(
-        { message: 'Transaction not found' },
-        { status: 404 }
-      );
-    }
-
-    // Check if the transaction belongs to the authenticated user
-    if (existingTransaction.userId !== session.user.id) {
-      return NextResponse.json(
-        { message: 'Unauthorized' },
-        { status: 403 }
-      );
-    }
-
-    const {
-      accountId,
-      amount,
-      description,
-      date,
-      type,
-      categoryId,
-      counterparty,
-      appUsed,
-      notes,
-      toAccountId,
-      recurringPaymentId,
-      creditId,
-    } = await request.json();
-
-    // Validate required fields
-    if (!accountId || amount === undefined || !date || !type) {
-      return NextResponse.json(
-        { message: 'Account, amount, date, and type are required' },
-        { status: 400 }
-      );
-    }
-
-    // Validate that the account belongs to the user
-    const account = await prisma.account.findUnique({
-      where: {
-        id: accountId,
-      },
-    });
-
-    if (!account || account.userId !== session.user.id) {
-      return NextResponse.json(
-        { message: 'Invalid account' },
-        { status: 400 }
-      );
-    }
-
-    // For transfers, validate the destination account
-    if (type === 'transfer' && toAccountId) {
-      const toAccount = await prisma.account.findUnique({
-        where: {
-          id: toAccountId,
-        },
-      });
-
-      if (!toAccount || toAccount.userId !== session.user.id) {
-        return NextResponse.json(
-          { message: 'Invalid destination account' },
-          { status: 400 }
-        );
-      }
-    }
-
-    // Revert the previous transaction's effect on account balances
-    if (existingTransaction.type === 'income') {
-      await prisma.account.update({
-        where: { id: existingTransaction.accountId },
-        data: { balance: { decrement: existingTransaction.amount } },
-      });
-    } else if (existingTransaction.type === 'expense') {
-      await prisma.account.update({
-        where: { id: existingTransaction.accountId },
-        data: { balance: { increment: existingTransaction.amount } },
-      });
-    } else if (existingTransaction.type === 'transfer' && existingTransaction.toAccountId) {
-      // Increase source account balance
-      await prisma.account.update({
-        where: { id: existingTransaction.accountId },
-        data: { balance: { increment: existingTransaction.amount } },
-      });
-      
-      // Decrease destination account balance
-      await prisma.account.update({
-        where: { id: existingTransaction.toAccountId },
-        data: { balance: { decrement: existingTransaction.amount } },
-      });
+    if (!originalTransaction) {
+      return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
     }
 
     // Update the transaction
-    const updatedTransaction = await prisma.transaction.update({
+    const transaction = await prisma.transaction.update({
       where: {
         id: params.id,
+        userId: user.id,
       },
       data: {
-        accountId,
-        amount: parseFloat(amount),
-        description,
-        date: new Date(date),
-        type,
-        categoryId,
-        counterparty,
-        appUsed,
-        notes,
-        toAccountId,
-        recurringPaymentId,
-        creditId,
+        ...data,
+        date: data.date ? new Date(data.date) : undefined,
+      },
+      include: {
+        account: true,
+        toAccount: true,
+        category: true,
       },
     });
 
-    // Apply the new transaction's effect on account balances
-    if (type === 'income') {
+    // Revert the original transaction's effect on account balances
+    if (originalTransaction.type === 'expense') {
       await prisma.account.update({
-        where: { id: accountId },
-        data: { balance: { increment: parseFloat(amount) } },
+        where: { id: originalTransaction.accountId },
+        data: { balance: { increment: originalTransaction.amount } },
       });
-    } else if (type === 'expense') {
+    } else if (originalTransaction.type === 'income') {
       await prisma.account.update({
-        where: { id: accountId },
-        data: { balance: { decrement: parseFloat(amount) } },
+        where: { id: originalTransaction.accountId },
+        data: { balance: { decrement: originalTransaction.amount } },
       });
-    } else if (type === 'transfer' && toAccountId) {
-      // Decrease source account balance
+    } else if (originalTransaction.type === 'transfer' && originalTransaction.toAccountId) {
       await prisma.account.update({
-        where: { id: accountId },
-        data: { balance: { decrement: parseFloat(amount) } },
+        where: { id: originalTransaction.accountId },
+        data: { balance: { increment: originalTransaction.amount } },
       });
-      
-      // Increase destination account balance
       await prisma.account.update({
-        where: { id: toAccountId },
-        data: { balance: { increment: parseFloat(amount) } },
+        where: { id: originalTransaction.toAccountId },
+        data: { balance: { decrement: originalTransaction.amount } },
+      });
+    } else if (originalTransaction.type === 'credit' && originalTransaction.creditType === 'borrowed') {
+      await prisma.account.update({
+        where: { id: originalTransaction.accountId },
+        data: { balance: { decrement: originalTransaction.amount } },
+      });
+    } else if (originalTransaction.type === 'credit' && originalTransaction.creditType === 'lent') {
+      await prisma.account.update({
+        where: { id: originalTransaction.accountId },
+        data: { balance: { increment: originalTransaction.amount } },
       });
     }
 
-    return NextResponse.json(updatedTransaction);
+    // Apply the updated transaction's effect on account balances
+    if (data.type === 'expense') {
+      await prisma.account.update({
+        where: { id: data.accountId },
+        data: { balance: { decrement: data.amount } },
+      });
+    } else if (data.type === 'income') {
+      await prisma.account.update({
+        where: { id: data.accountId },
+        data: { balance: { increment: data.amount } },
+      });
+    } else if (data.type === 'transfer' && data.toAccountId) {
+      await prisma.account.update({
+        where: { id: data.accountId },
+        data: { balance: { decrement: data.amount } },
+      });
+      await prisma.account.update({
+        where: { id: data.toAccountId },
+        data: { balance: { increment: data.amount } },
+      });
+    } else if (data.type === 'credit' && data.creditType === 'borrowed') {
+      await prisma.account.update({
+        where: { id: data.accountId },
+        data: { balance: { increment: data.amount } },
+      });
+    } else if (data.type === 'credit' && data.creditType === 'lent') {
+      await prisma.account.update({
+        where: { id: data.accountId },
+        data: { balance: { decrement: data.amount } },
+      });
+    }
+
+    return NextResponse.json(transaction);
   } catch (error) {
     console.error('Error updating transaction:', error);
-    return NextResponse.json(
-      { message: 'An error occurred while updating the transaction' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to update transaction' }, { status: 500 });
   }
 }
 
-// DELETE /api/transactions/[id] - Delete a transaction
+// DELETE a transaction by ID
 export async function DELETE(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    
-    if (!session?.user) {
-      return NextResponse.json(
-        { message: 'Unauthorized' },
-        { status: 401 }
-      );
+    const user = await getAuthUser(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get the existing transaction
-    const existingTransaction = await prisma.transaction.findUnique({
+    // Get the transaction before deleting to handle balance adjustments
+    const transaction = await prisma.transaction.findUnique({
       where: {
         id: params.id,
+        userId: user.id,
       },
     });
 
-    if (!existingTransaction) {
-      return NextResponse.json(
-        { message: 'Transaction not found' },
-        { status: 404 }
-      );
-    }
-
-    // Check if the transaction belongs to the authenticated user
-    if (existingTransaction.userId !== session.user.id) {
-      return NextResponse.json(
-        { message: 'Unauthorized' },
-        { status: 403 }
-      );
-    }
-
-    // Revert the transaction's effect on account balances
-    if (existingTransaction.type === 'income') {
-      await prisma.account.update({
-        where: { id: existingTransaction.accountId },
-        data: { balance: { decrement: existingTransaction.amount } },
-      });
-    } else if (existingTransaction.type === 'expense') {
-      await prisma.account.update({
-        where: { id: existingTransaction.accountId },
-        data: { balance: { increment: existingTransaction.amount } },
-      });
-    } else if (existingTransaction.type === 'transfer' && existingTransaction.toAccountId) {
-      // Increase source account balance
-      await prisma.account.update({
-        where: { id: existingTransaction.accountId },
-        data: { balance: { increment: existingTransaction.amount } },
-      });
-      
-      // Decrease destination account balance
-      await prisma.account.update({
-        where: { id: existingTransaction.toAccountId },
-        data: { balance: { decrement: existingTransaction.amount } },
-      });
+    if (!transaction) {
+      return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
     }
 
     // Delete the transaction
     await prisma.transaction.delete({
       where: {
         id: params.id,
+        userId: user.id,
       },
     });
 
-    return NextResponse.json({ message: 'Transaction deleted successfully' });
+    // Update account balances
+    if (transaction.type === 'expense') {
+      await prisma.account.update({
+        where: { id: transaction.accountId },
+        data: { balance: { increment: transaction.amount } },
+      });
+    } else if (transaction.type === 'income') {
+      await prisma.account.update({
+        where: { id: transaction.accountId },
+        data: { balance: { decrement: transaction.amount } },
+      });
+    } else if (transaction.type === 'transfer' && transaction.toAccountId) {
+      await prisma.account.update({
+        where: { id: transaction.accountId },
+        data: { balance: { increment: transaction.amount } },
+      });
+      await prisma.account.update({
+        where: { id: transaction.toAccountId },
+        data: { balance: { decrement: transaction.amount } },
+      });
+    } else if (transaction.type === 'credit' && transaction.creditType === 'borrowed') {
+      await prisma.account.update({
+        where: { id: transaction.accountId },
+        data: { balance: { decrement: transaction.amount } },
+      });
+    } else if (transaction.type === 'credit' && transaction.creditType === 'lent') {
+      await prisma.account.update({
+        where: { id: transaction.accountId },
+        data: { balance: { increment: transaction.amount } },
+      });
+    }
+
+    return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error deleting transaction:', error);
-    return NextResponse.json(
-      { message: 'An error occurred while deleting the transaction' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to delete transaction' }, { status: 500 });
   }
 }

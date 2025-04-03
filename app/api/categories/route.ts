@@ -1,107 +1,73 @@
-import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/db';
+import { getAuthUser } from '@/lib/auth';
 
-const prisma = new PrismaClient();
-
-// GET /api/categories - Get all categories for the authenticated user
-export async function GET(request: Request) {
+// GET all categories for the authenticated user
+export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    
-    if (!session?.user) {
-      return NextResponse.json(
-        { message: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
-    // Parse query parameters
-    const { searchParams } = new URL(request.url);
-    const type = searchParams.get('type'); // 'income' or 'expense'
-
-    // Build the where clause
-    const where: any = {
-      userId: session.user.id,
-    };
-
-    if (type) {
-      where.type = type;
+    const user = await getAuthUser(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const categories = await prisma.category.findMany({
-      where,
-      orderBy: {
-        name: 'asc',
+      where: { userId: user.id },
+      orderBy: { name: 'asc' },
+      include: {
+        subCategories: true,
       },
     });
 
     return NextResponse.json(categories);
   } catch (error) {
     console.error('Error fetching categories:', error);
-    return NextResponse.json(
-      { message: 'An error occurred while fetching categories' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to fetch categories' }, { status: 500 });
   }
 }
 
-// POST /api/categories - Create a new category
-export async function POST(request: Request) {
+// CREATE a new category
+export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getAuthUser(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const data = await request.json();
     
-    if (!session?.user) {
-      return NextResponse.json(
-        { message: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
-    const { name, icon, color, type } = await request.json();
-
     // Validate required fields
-    if (!name || !type) {
-      return NextResponse.json(
-        { message: 'Name and type are required' },
-        { status: 400 }
-      );
+    if (!data.name || !data.type) {
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // Check if a category with the same name already exists for this user
-    const existingCategory = await prisma.category.findFirst({
-      where: {
-        userId: session.user.id,
-        name,
-      },
-    });
+    // If parentId is provided, verify it exists
+    if (data.parentId) {
+      const parentCategory = await prisma.category.findUnique({
+        where: {
+          id: data.parentId,
+          userId: user.id,
+        },
+      });
 
-    if (existingCategory) {
-      return NextResponse.json(
-        { message: 'A category with this name already exists' },
-        { status: 409 }
-      );
+      if (!parentCategory) {
+        return NextResponse.json({ error: 'Parent category not found' }, { status: 404 });
+      }
     }
 
     // Create the category
     const category = await prisma.category.create({
       data: {
-        userId: session.user.id,
-        name,
-        icon,
-        color,
-        type,
-        isDefault: false,
+        ...data,
+        userId: user.id,
+      },
+      include: {
+        subCategories: true,
       },
     });
 
     return NextResponse.json(category);
   } catch (error) {
     console.error('Error creating category:', error);
-    return NextResponse.json(
-      { message: 'An error occurred while creating the category' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to create category' }, { status: 500 });
   }
 }

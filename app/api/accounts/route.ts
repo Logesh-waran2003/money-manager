@@ -1,91 +1,64 @@
-import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/db';
+import { getAuthUser } from '@/lib/auth';
 
-const prisma = new PrismaClient();
-
-// GET /api/accounts - Get all accounts for the authenticated user
-export async function GET() {
+// GET all accounts for the authenticated user
+export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    
-    if (!session?.user) {
-      return NextResponse.json(
-        { message: 'Unauthorized' },
-        { status: 401 }
-      );
+    const user = await getAuthUser(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const accounts = await prisma.account.findMany({
-      where: {
-        userId: session.user.id,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      where: { userId: user.id },
+      orderBy: { name: 'asc' },
     });
 
     return NextResponse.json(accounts);
   } catch (error) {
     console.error('Error fetching accounts:', error);
-    return NextResponse.json(
-      { message: 'An error occurred while fetching accounts' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to fetch accounts' }, { status: 500 });
   }
 }
 
-// POST /api/accounts - Create a new account
-export async function POST(request: Request) {
+// CREATE a new account
+export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getAuthUser(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const data = await request.json();
     
-    if (!session?.user) {
-      return NextResponse.json(
-        { message: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
-    const { name, type, balance, currency, accountNumber, institution, notes } = await request.json();
-
     // Validate required fields
-    if (!name || !type) {
-      return NextResponse.json(
-        { message: 'Name and type are required' },
-        { status: 400 }
-      );
+    if (!data.name || !data.type || data.balance === undefined) {
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // Check if this is the first account for the user
-    const existingAccounts = await prisma.account.count({
-      where: {
-        userId: session.user.id,
-      },
-    });
+    // If this is set as default, unset any existing default account
+    if (data.isDefault) {
+      await prisma.account.updateMany({
+        where: { 
+          userId: user.id,
+          isDefault: true 
+        },
+        data: { isDefault: false },
+      });
+    }
 
     // Create the account
     const account = await prisma.account.create({
       data: {
-        userId: session.user.id,
-        name,
-        type,
-        balance: balance || 0,
-        currency: currency || 'USD',
-        accountNumber,
-        institution,
-        notes,
-        isDefault: existingAccounts === 0, // Make it default if it's the first account
+        ...data,
+        userId: user.id,
       },
     });
 
     return NextResponse.json(account);
   } catch (error) {
     console.error('Error creating account:', error);
-    return NextResponse.json(
-      { message: 'An error occurred while creating the account' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to create account' }, { status: 500 });
   }
 }

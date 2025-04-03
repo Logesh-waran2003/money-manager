@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { devtools, persist } from 'zustand/middleware';
 
-export type AccountType = 'debit' | 'credit' | 'bank' | 'cash' | 'investment';
+export type AccountType = 'bank' | 'credit' | 'cash' | 'investment';
 
 export interface Account {
   id: string;
@@ -9,79 +9,95 @@ export interface Account {
   type: AccountType;
   balance: number;
   currency: string;
-  isDefault: boolean;
   accountNumber?: string;
   institution?: string;
   notes?: string;
+  isDefault: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
-interface AccountState {
+interface AccountStore {
   accounts: Account[];
-  selectedAccountId: string | null;
   isLoading: boolean;
   error: string | null;
   
   // Actions
-  setAccounts: (accounts: Account[]) => void;
+  fetchAccounts: () => Promise<void>;
   addAccount: (account: Account) => void;
   updateAccount: (id: string, data: Partial<Account>) => void;
   deleteAccount: (id: string) => void;
-  selectAccount: (id: string | null) => void;
-  setLoading: (isLoading: boolean) => void;
-  setError: (error: string | null) => void;
+  setDefaultAccount: (id: string) => void;
 }
 
-export const useAccountStore = create<AccountState>()(
+export const useAccountStore = create<AccountStore>()(
   devtools(
     persist(
-      (set) => ({
+      (set, get) => ({
         accounts: [],
-        selectedAccountId: null,
         isLoading: false,
         error: null,
-        
-        setAccounts: (accounts) => set({ accounts }),
-        
-        addAccount: (account) => 
-          set((state) => ({ 
-            accounts: [...state.accounts, account],
-            // If this is the first account, select it
-            selectedAccountId: state.accounts.length === 0 ? account.id : state.selectedAccountId
-          })),
-        
-        updateAccount: (id, data) => 
+
+        fetchAccounts: async () => {
+          set({ isLoading: true, error: null });
+          try {
+            // Make API call to fetch accounts
+            const token = localStorage.getItem('token') || '';
+            const response = await fetch('/api/accounts', {
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            });
+            
+            if (!response.ok) {
+              const errorData = await response.json();
+              throw new Error(errorData.error || 'Failed to fetch accounts');
+            }
+            
+            const data = await response.json();
+            set({ accounts: data, isLoading: false });
+          } catch (error) {
+            set({ 
+              error: error instanceof Error ? error.message : 'Failed to fetch accounts', 
+              isLoading: false 
+            });
+          }
+        },
+
+        addAccount: (account) => {
           set((state) => ({
-            accounts: state.accounts.map((account) => 
-              account.id === id ? { ...account, ...data } : account
-            )
-          })),
-        
-        deleteAccount: (id) => 
+            accounts: [...state.accounts, account],
+          }));
+        },
+
+        updateAccount: (id, data) => {
+          set((state) => ({
+            accounts: state.accounts.map((account) =>
+              account.id === id
+                ? { ...account, ...data, updatedAt: new Date().toISOString() }
+                : account
+            ),
+          }));
+        },
+
+        deleteAccount: (id) => {
           set((state) => ({
             accounts: state.accounts.filter((account) => account.id !== id),
-            // If the deleted account was selected, select the first account or null
-            selectedAccountId: state.selectedAccountId === id 
-              ? state.accounts.length > 1 
-                ? state.accounts.find(a => a.id !== id)?.id ?? null 
-                : null 
-              : state.selectedAccountId
-          })),
-        
-        selectAccount: (id) => set({ selectedAccountId: id }),
-        
-        setLoading: (isLoading) => set({ isLoading }),
-        
-        setError: (error) => set({ error })
+          }));
+        },
+
+        setDefaultAccount: (id) => {
+          set((state) => ({
+            accounts: state.accounts.map((account) => ({
+              ...account,
+              isDefault: account.id === id,
+              updatedAt: account.id === id ? new Date().toISOString() : account.updatedAt,
+            })),
+          }));
+        },
       }),
       {
         name: 'account-store',
-        // Only persist these fields
-        partialize: (state) => ({ 
-          accounts: state.accounts,
-          selectedAccountId: state.selectedAccountId
-        }),
       }
     )
   )

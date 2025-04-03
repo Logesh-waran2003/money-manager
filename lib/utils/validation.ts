@@ -1,97 +1,79 @@
 /**
- * Form validation utilities
+ * Check if a string is a valid currency amount
+ * @param value - The string to check
+ * @returns True if the string is a valid currency amount
  */
+export function isValidCurrencyAmount(value: string): boolean {
+  // Allow empty string for optional fields
+  if (!value) return true;
+  
+  // Remove currency symbols, commas, and spaces
+  const cleanValue = value.replace(/[$£€,\s]/g, '');
+  
+  // Check if it's a valid number with up to 2 decimal places
+  const regex = /^-?\d+(\.\d{1,2})?$/;
+  return regex.test(cleanValue);
+}
 
 /**
- * Validate an email address
+ * Check if a string is a valid email address
  * @param email - The email to validate
  * @returns True if the email is valid
  */
 export function isValidEmail(email: string): boolean {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
+  const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return regex.test(email);
 }
 
 /**
- * Validate a password
+ * Check if a string is a valid password (min 8 chars, at least 1 letter and 1 number)
  * @param password - The password to validate
- * @returns True if the password meets requirements
+ * @returns True if the password is valid
  */
 export function isValidPassword(password: string): boolean {
-  // At least 8 characters, 1 uppercase, 1 lowercase, 1 number
-  const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
-  return passwordRegex.test(password);
+  return password.length >= 8 && 
+         /[A-Za-z]/.test(password) && 
+         /\d/.test(password);
 }
 
 /**
- * Get password strength score (0-4)
- * @param password - The password to check
- * @returns Score from 0 (weak) to 4 (strong)
- */
-export function getPasswordStrength(password: string): number {
-  if (!password) return 0;
-  
-  let score = 0;
-  
-  // Length check
-  if (password.length >= 8) score += 1;
-  if (password.length >= 12) score += 1;
-  
-  // Complexity checks
-  if (/[A-Z]/.test(password)) score += 1;
-  if (/[a-z]/.test(password)) score += 1;
-  if (/[0-9]/.test(password)) score += 1;
-  if (/[^A-Za-z0-9]/.test(password)) score += 1;
-  
-  return Math.min(4, Math.floor(score / 1.5));
-}
-
-/**
- * Validate a currency amount
- * @param amount - The amount to validate
- * @returns True if the amount is valid
- */
-export function isValidCurrencyAmount(amount: string | number): boolean {
-  if (typeof amount === 'number') {
-    return !isNaN(amount) && isFinite(amount);
-  }
-  
-  // Allow empty string for form inputs that are being typed
-  if (amount === '') return true;
-  
-  // Remove currency symbols, commas, etc.
-  const cleanedAmount = amount.replace(/[^0-9.-]/g, '');
-  const numAmount = parseFloat(cleanedAmount);
-  
-  return !isNaN(numAmount) && isFinite(numAmount);
-}
-
-/**
- * Validate a required field
- * @param value - The value to check
- * @returns True if the value is not empty
- */
-export function isRequired(value: any): boolean {
-  if (value === null || value === undefined) return false;
-  if (typeof value === 'string') return value.trim() !== '';
-  if (typeof value === 'number') return true;
-  if (Array.isArray(value)) return value.length > 0;
-  if (typeof value === 'object') return Object.keys(value).length > 0;
-  
-  return Boolean(value);
-}
-
-/**
- * Validate a date
- * @param date - The date to validate
+ * Check if a date string is valid
+ * @param dateStr - The date string to validate
  * @returns True if the date is valid
  */
-export function isValidDate(date: Date | string | number): boolean {
-  if (!date) return false;
+export function isValidDate(dateStr: string): boolean {
+  const date = new Date(dateStr);
+  return !isNaN(date.getTime());
+}
+
+/**
+ * Check if a string is a valid credit card number (using Luhn algorithm)
+ * @param cardNumber - The credit card number to validate
+ * @returns True if the card number is valid
+ */
+export function isValidCreditCardNumber(cardNumber: string): boolean {
+  // Remove spaces and dashes
+  const value = cardNumber.replace(/[\s-]/g, '');
   
-  const dateObj = typeof date === 'string' || typeof date === 'number' 
-    ? new Date(date) 
-    : date;
+  // Check if it contains only digits
+  if (!/^\d+$/.test(value)) return false;
   
-  return !isNaN(dateObj.getTime());
+  // Luhn algorithm
+  let sum = 0;
+  let shouldDouble = false;
+  
+  // Loop through values starting from the rightmost digit
+  for (let i = value.length - 1; i >= 0; i--) {
+    let digit = parseInt(value.charAt(i));
+    
+    if (shouldDouble) {
+      digit *= 2;
+      if (digit > 9) digit -= 9;
+    }
+    
+    sum += digit;
+    shouldDouble = !shouldDouble;
+  }
+  
+  return sum % 10 === 0;
 }

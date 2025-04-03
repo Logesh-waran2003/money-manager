@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/db';
+import { sign } from 'jsonwebtoken';
 
 export async function POST(request: Request) {
   try {
@@ -12,7 +10,7 @@ export async function POST(request: Request) {
     // Validate input
     if (!email || !password) {
       return NextResponse.json(
-        { message: 'Email and password are required' },
+        { error: 'Email and password are required' },
         { status: 400 }
       );
     }
@@ -22,41 +20,45 @@ export async function POST(request: Request) {
       where: { email },
     });
 
+    // Check if user exists
     if (!user) {
       return NextResponse.json(
-        { message: 'Invalid email or password' },
+        { error: 'Invalid email or password' },
         { status: 401 }
       );
     }
 
     // Verify password
     const isPasswordValid = await bcrypt.compare(password, user.password);
-
     if (!isPasswordValid) {
       return NextResponse.json(
-        { message: 'Invalid email or password' },
+        { error: 'Invalid email or password' },
         { status: 401 }
       );
     }
 
     // Generate JWT token
-    const token = jwt.sign(
+    const token = sign(
       { userId: user.id },
       process.env.JWT_SECRET || 'fallback-secret',
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 
-    // Return user data (excluding password)
-    const { password: _, ...userWithoutPassword } = user;
-
+    // Return user data (excluding password) and token
     return NextResponse.json({
-      user: userWithoutPassword,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      },
       token,
     });
   } catch (error) {
     console.error('Login error:', error);
     return NextResponse.json(
-      { message: 'An error occurred during login' },
+      { error: 'Failed to authenticate user' },
       { status: 500 }
     );
   }

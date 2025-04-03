@@ -33,7 +33,7 @@ export function StatsCard({
 }: StatsCardProps) {
   // Calculate percentage change if previous value is provided
   const percentageChange = previousValue !== undefined 
-    ? ((value - previousValue) / Math.abs(previousValue || 1)) * 100 
+    ? ((value - previousValue) / Math.abs(previousValue || 1))
     : 0;
   
   // Determine trend if not explicitly provided
@@ -76,7 +76,7 @@ export function StatsCard({
               ) : determinedTrend === "down" ? (
                 <ArrowDownRight className="h-3 w-3 mr-1" />
               ) : null}
-              {formatPercentageChange(value, previousValue)}
+              {formatPercentageChange(percentageChange)}
             </div>
             <div className="text-xs text-muted-foreground ml-1.5">
               vs. previous period

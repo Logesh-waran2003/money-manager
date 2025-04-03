@@ -1,108 +1,142 @@
-/**
- * Date formatting and manipulation utilities
- */
-
-import { format, formatDistance, isToday, isYesterday, isSameWeek, isSameMonth, isSameYear } from 'date-fns';
+import { format, formatDistance, formatRelative, isToday, isYesterday, isThisWeek, isThisMonth, isThisYear } from 'date-fns';
 
 /**
- * Format a date with a standard format
- * @param date - The date to format
- * @param formatString - Optional custom format string
+ * Format a date in a human-readable way
+ * @param date The date to format
+ * @param formatString The format string (default: 'PPP')
  * @returns Formatted date string
  */
-export function formatDate(date: Date | string | number, formatString = 'MMM d, yyyy'): string {
-  if (!date) return '';
-  
-  const dateObj = typeof date === 'string' || typeof date === 'number' 
-    ? new Date(date) 
-    : date;
-  
+export function formatDate(date: Date | string, formatString: string = 'PPP'): string {
+  const dateObj = typeof date === 'string' ? new Date(date) : date;
   return format(dateObj, formatString);
 }
 
 /**
- * Format a date for display in transaction lists
- * Uses relative formatting for recent dates
- * @param date - The date to format
- * @returns User-friendly formatted date string
+ * Format a date in a relative way (e.g., "today", "yesterday", "last week")
+ * @param date The date to format
+ * @returns Relative date string
  */
-export function formatTransactionDate(date: Date | string | number): string {
-  if (!date) return '';
-  
-  const dateObj = typeof date === 'string' || typeof date === 'number' 
-    ? new Date(date) 
-    : date;
+export function formatRelativeDate(date: Date | string): string {
+  const dateObj = typeof date === 'string' ? new Date(date) : date;
   
   if (isToday(dateObj)) {
     return 'Today';
-  }
-  
-  if (isYesterday(dateObj)) {
+  } else if (isYesterday(dateObj)) {
     return 'Yesterday';
+  } else if (isThisWeek(dateObj)) {
+    return format(dateObj, 'EEEE'); // Day of week
+  } else if (isThisMonth(dateObj)) {
+    return format(dateObj, 'MMM d'); // Month and day
+  } else if (isThisYear(dateObj)) {
+    return format(dateObj, 'MMM d'); // Month and day
+  } else {
+    return format(dateObj, 'MMM d, yyyy'); // Full date
   }
-  
-  if (isSameWeek(dateObj, new Date())) {
-    return format(dateObj, 'EEEE'); // Day name
-  }
-  
-  if (isSameMonth(dateObj, new Date())) {
-    return format(dateObj, 'MMM d'); // Month + day
-  }
-  
-  if (isSameYear(dateObj, new Date())) {
-    return format(dateObj, 'MMM d'); // Month + day
-  }
-  
-  return format(dateObj, 'MMM d, yyyy'); // Full date with year
 }
 
 /**
- * Format a date as a relative time from now
- * @param date - The date to format
- * @returns Relative time string (e.g., "2 days ago")
+ * Format a date specifically for transaction display
+ * @param date The date to format
+ * @returns Formatted transaction date string
  */
-export function formatRelativeTime(date: Date | string | number): string {
-  if (!date) return '';
-  
-  const dateObj = typeof date === 'string' || typeof date === 'number' 
-    ? new Date(date) 
-    : date;
-  
-  return formatDistance(dateObj, new Date(), { addSuffix: true });
-}
-
-/**
- * Get the start of the current month
- * @returns Date object for the first day of the current month
- */
-export function getStartOfCurrentMonth(): Date {
-  const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), 1);
-}
-
-/**
- * Get the end of the current month
- * @returns Date object for the last day of the current month
- */
-export function getEndOfCurrentMonth(): Date {
-  const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth() + 1, 0);
+export function formatTransactionDate(date: Date | string): string {
+  return formatRelativeDate(date);
 }
 
 /**
  * Format a date range
- * @param startDate - Start date
- * @param endDate - End date
+ * @param startDate The start date
+ * @param endDate The end date
  * @returns Formatted date range string
  */
-export function formatDateRange(startDate: Date, endDate: Date): string {
-  if (isSameMonth(startDate, endDate) && isSameYear(startDate, endDate)) {
-    return `${format(startDate, 'MMM d')} - ${format(endDate, 'd, yyyy')}`;
-  }
+export function formatDateRange(startDate: Date | string, endDate: Date | string): string {
+  const start = typeof startDate === 'string' ? new Date(startDate) : startDate;
+  const end = typeof endDate === 'string' ? new Date(endDate) : endDate;
   
-  if (isSameYear(startDate, endDate)) {
-    return `${format(startDate, 'MMM d')} - ${format(endDate, 'MMM d, yyyy')}`;
+  if (isThisYear(start) && isThisYear(end)) {
+    // Same year
+    if (start.getMonth() === end.getMonth()) {
+      // Same month
+      return `${format(start, 'MMM d')} - ${format(end, 'd, yyyy')}`;
+    } else {
+      // Different months
+      return `${format(start, 'MMM d')} - ${format(end, 'MMM d, yyyy')}`;
+    }
+  } else {
+    // Different years
+    return `${format(start, 'MMM d, yyyy')} - ${format(end, 'MMM d, yyyy')}`;
   }
+}
+
+/**
+ * Format a time in a human-readable way
+ * @param date The date to format
+ * @param formatString The format string (default: 'p')
+ * @returns Formatted time string
+ */
+export function formatTime(date: Date | string, formatString: string = 'p'): string {
+  const dateObj = typeof date === 'string' ? new Date(date) : date;
+  return format(dateObj, formatString);
+}
+
+/**
+ * Format a date and time in a human-readable way
+ * @param date The date to format
+ * @param formatString The format string (default: 'PPp')
+ * @returns Formatted date and time string
+ */
+export function formatDateTime(date: Date | string, formatString: string = 'PPp'): string {
+  const dateObj = typeof date === 'string' ? new Date(date) : date;
+  return format(dateObj, formatString);
+}
+
+/**
+ * Format a duration in a human-readable way
+ * @param startDate The start date
+ * @param endDate The end date
+ * @returns Formatted duration string
+ */
+export function formatDuration(startDate: Date | string, endDate: Date | string): string {
+  const start = typeof startDate === 'string' ? new Date(startDate) : startDate;
+  const end = typeof endDate === 'string' ? new Date(endDate) : endDate;
   
-  return `${format(startDate, 'MMM d, yyyy')} - ${format(endDate, 'MMM d, yyyy')}`;
+  return formatDistance(start, end, { addSuffix: false });
+}
+
+/**
+ * Get the first day of the month
+ * @param date The date
+ * @returns The first day of the month
+ */
+export function getFirstDayOfMonth(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+/**
+ * Get the last day of the month
+ * @param date The date
+ * @returns The last day of the month
+ */
+export function getLastDayOfMonth(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0);
+}
+
+/**
+ * Get the first day of the week
+ * @param date The date
+ * @returns The first day of the week (Sunday)
+ */
+export function getFirstDayOfWeek(date: Date): Date {
+  const day = date.getDay();
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate() - day);
+}
+
+/**
+ * Get the last day of the week
+ * @param date The date
+ * @returns The last day of the week (Saturday)
+ */
+export function getLastDayOfWeek(date: Date): Date {
+  const day = date.getDay();
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + (6 - day));
 }

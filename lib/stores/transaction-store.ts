@@ -6,193 +6,140 @@ export type TransactionType = 'income' | 'expense' | 'transfer' | 'credit' | 're
 export interface Transaction {
   id: string;
   accountId: string;
-  amount: number;
-  description?: string;
-  date: string;
-  type: TransactionType;
+  toAccountId?: string;
   categoryId?: string;
+  amount: number;
+  date: string;
+  description?: string;
   counterparty?: string;
+  type: TransactionType;
   appUsed?: string;
   notes?: string;
-  
-  // For transfers
-  toAccountId?: string;
-  
-  // For recurring transactions
-  recurringPaymentId?: string;
-  
-  // For credit transactions
-  creditId?: string;
-  
   createdAt: string;
   updatedAt: string;
 }
 
 interface TransactionFilters {
+  searchQuery?: string;
   startDate?: string;
   endDate?: string;
-  type?: TransactionType | TransactionType[];
   accountId?: string;
   categoryId?: string;
-  searchQuery?: string;
-  minAmount?: number;
-  maxAmount?: number;
+  type?: TransactionType;
 }
 
-interface TransactionState {
+interface TransactionStore {
   transactions: Transaction[];
-  filteredTransactions: Transaction[];
-  selectedTransactionId: string | null;
   filters: TransactionFilters;
   isLoading: boolean;
   error: string | null;
   
+  // Computed
+  filteredTransactions: Transaction[];
+  
   // Actions
-  setTransactions: (transactions: Transaction[]) => void;
+  fetchTransactions: () => Promise<void>;
   addTransaction: (transaction: Transaction) => void;
   updateTransaction: (id: string, data: Partial<Transaction>) => void;
   deleteTransaction: (id: string) => void;
-  selectTransaction: (id: string | null) => void;
   setFilters: (filters: TransactionFilters) => void;
-  clearFilters: () => void;
-  applyFilters: () => void;
-  setLoading: (isLoading: boolean) => void;
-  setError: (error: string | null) => void;
 }
 
-export const useTransactionStore = create<TransactionState>()(
+export const useTransactionStore = create<TransactionStore>()(
   devtools(
     persist(
       (set, get) => ({
         transactions: [],
-        filteredTransactions: [],
-        selectedTransactionId: null,
         filters: {},
         isLoading: false,
         error: null,
-        
-        setTransactions: (transactions) => 
-          set({ 
-            transactions,
-            filteredTransactions: transactions 
-          }),
-        
-        addTransaction: (transaction) => 
-          set((state) => {
-            const newTransactions = [...state.transactions, transaction];
-            return { 
-              transactions: newTransactions,
-              filteredTransactions: get().applyFilters(),
-            };
-          }),
-        
-        updateTransaction: (id, data) => 
-          set((state) => {
-            const newTransactions = state.transactions.map((transaction) => 
-              transaction.id === id ? { ...transaction, ...data } : transaction
-            );
-            return {
-              transactions: newTransactions,
-              filteredTransactions: get().applyFilters(),
-            };
-          }),
-        
-        deleteTransaction: (id) => 
-          set((state) => {
-            const newTransactions = state.transactions.filter((transaction) => transaction.id !== id);
-            return {
-              transactions: newTransactions,
-              filteredTransactions: get().applyFilters(),
-              selectedTransactionId: state.selectedTransactionId === id ? null : state.selectedTransactionId
-            };
-          }),
-        
-        selectTransaction: (id) => set({ selectedTransactionId: id }),
-        
-        setFilters: (filters) => 
-          set((state) => ({
-            filters: { ...state.filters, ...filters },
-            filteredTransactions: get().applyFilters(),
-          })),
-        
-        clearFilters: () => 
-          set((state) => ({
-            filters: {},
-            filteredTransactions: state.transactions,
-          })),
-        
-        applyFilters: () => {
+
+        get filteredTransactions() {
           const { transactions, filters } = get();
           
-          let filtered = [...transactions];
-          
-          // Apply date filters
-          if (filters.startDate) {
-            filtered = filtered.filter(t => new Date(t.date) >= new Date(filters.startDate!));
-          }
-          
-          if (filters.endDate) {
-            filtered = filtered.filter(t => new Date(t.date) <= new Date(filters.endDate!));
-          }
-          
-          // Apply type filter
-          if (filters.type) {
-            if (Array.isArray(filters.type)) {
-              filtered = filtered.filter(t => filters.type!.includes(t.type));
-            } else {
-              filtered = filtered.filter(t => t.type === filters.type);
+          return transactions.filter(transaction => {
+            // Search query filter
+            if (filters.searchQuery && !transaction.description?.toLowerCase().includes(filters.searchQuery.toLowerCase()) &&
+                !transaction.counterparty?.toLowerCase().includes(filters.searchQuery.toLowerCase())) {
+              return false;
             }
-          }
-          
-          // Apply account filter
-          if (filters.accountId) {
-            filtered = filtered.filter(t => 
-              t.accountId === filters.accountId || t.toAccountId === filters.accountId
-            );
-          }
-          
-          // Apply category filter
-          if (filters.categoryId) {
-            filtered = filtered.filter(t => t.categoryId === filters.categoryId);
-          }
-          
-          // Apply amount filters
-          if (filters.minAmount !== undefined) {
-            filtered = filtered.filter(t => t.amount >= filters.minAmount!);
-          }
-          
-          if (filters.maxAmount !== undefined) {
-            filtered = filtered.filter(t => t.amount <= filters.maxAmount!);
-          }
-          
-          // Apply search query
-          if (filters.searchQuery) {
-            const query = filters.searchQuery.toLowerCase();
-            filtered = filtered.filter(t => 
-              t.description?.toLowerCase().includes(query) || 
-              t.counterparty?.toLowerCase().includes(query) ||
-              t.notes?.toLowerCase().includes(query)
-            );
-          }
-          
-          // Sort by date (newest first)
-          filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-          
-          set({ filteredTransactions: filtered });
-          return filtered;
+            
+            // Date range filter
+            if (filters.startDate && new Date(transaction.date) < new Date(filters.startDate)) {
+              return false;
+            }
+            if (filters.endDate && new Date(transaction.date) > new Date(filters.endDate)) {
+              return false;
+            }
+            
+            // Account filter
+            if (filters.accountId && transaction.accountId !== filters.accountId) {
+              return false;
+            }
+            
+            // Category filter
+            if (filters.categoryId && transaction.categoryId !== filters.categoryId) {
+              return false;
+            }
+            
+            // Type filter
+            if (filters.type && transaction.type !== filters.type) {
+              return false;
+            }
+            
+            return true;
+          }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         },
-        
-        setLoading: (isLoading) => set({ isLoading }),
-        
-        setError: (error) => set({ error })
+
+        fetchTransactions: async () => {
+          set({ isLoading: true, error: null });
+          try {
+            // In a real app, this would be an API call
+            // const response = await fetch('/api/transactions');
+            // const data = await response.json();
+            // set({ transactions: data, isLoading: false });
+            
+            // For now, we'll just simulate a delay
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Keep the existing transactions
+            set({ isLoading: false });
+          } catch (error) {
+            set({ 
+              error: error instanceof Error ? error.message : 'Failed to fetch transactions', 
+              isLoading: false 
+            });
+          }
+        },
+
+        addTransaction: (transaction) => {
+          set((state) => ({
+            transactions: [...state.transactions, transaction],
+          }));
+        },
+
+        updateTransaction: (id, data) => {
+          set((state) => ({
+            transactions: state.transactions.map((transaction) =>
+              transaction.id === id
+                ? { ...transaction, ...data, updatedAt: new Date().toISOString() }
+                : transaction
+            ),
+          }));
+        },
+
+        deleteTransaction: (id) => {
+          set((state) => ({
+            transactions: state.transactions.filter((transaction) => transaction.id !== id),
+          }));
+        },
+
+        setFilters: (filters) => {
+          set({ filters });
+        },
       }),
       {
         name: 'transaction-store',
-        partialize: (state) => ({ 
-          transactions: state.transactions,
-          selectedTransactionId: state.selectedTransactionId,
-          filters: state.filters
-        }),
       }
     )
   )
