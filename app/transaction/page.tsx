@@ -25,6 +25,23 @@ export default function TransactionForm() {
   const { addTransaction } = useTransactionStore();
   const [isLoading, setIsLoading] = useState(false);
   
+  // Check URL parameters for transaction type
+  const [searchParams, setSearchParams] = useState<URLSearchParams | null>(null);
+  
+  useEffect(() => {
+    // Get URL parameters
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      setSearchParams(params);
+      
+      // Set transfer mode if specified in URL
+      if (params.get('type') === 'transfer') {
+        setIsTransfer(true);
+        setTransactionType('transfer');
+      }
+    }
+  }, []);
+  
   // Core transaction details
   const [selectedAccount, setSelectedAccount] = useState("");
   const [amount, setAmount] = useState("");
