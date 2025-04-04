@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import {
   Select,
   SelectContent,
@@ -25,7 +25,12 @@ const CategorySelector: React.FC<CategorySelectorProps> = ({
   placeholder = "Select category",
   disabled = false,
 }) => {
-  const { categories, getCategoriesByType } = useCategoryStore();
+  const { categories, getCategoriesByType, fetchCategories } = useCategoryStore();
+
+  // Fetch categories on component mount
+  useEffect(() => {
+    fetchCategories();
+  }, [fetchCategories]);
 
   // Filter categories based on type
   const filteredCategories = React.useMemo(() => {

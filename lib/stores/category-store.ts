@@ -182,17 +182,23 @@ export const useCategoryStore = create<CategoryStore>()(
         fetchCategories: async () => {
           set({ isLoading: true, error: null });
           try {
-            // In a real app, this would be an API call
-            // const response = await fetch('/api/categories');
-            // const data = await response.json();
-            // set({ categories: data, isLoading: false });
+            const response = await fetch('/api/categories');
             
-            // For now, we'll just simulate a delay
-            await new Promise(resolve => setTimeout(resolve, 500));
+            if (!response.ok) {
+              throw new Error('Failed to fetch categories');
+            }
             
-            // Keep the existing categories
-            set({ isLoading: false });
+            const data = await response.json();
+            
+            // If we got data from the API, use it
+            if (data && data.length > 0) {
+              set({ categories: data, isLoading: false });
+            } else {
+              // Otherwise keep using the default categories
+              set({ isLoading: false });
+            }
           } catch (error) {
+            console.error('Error fetching categories:', error);
             set({ 
               error: error instanceof Error ? error.message : 'Failed to fetch categories', 
               isLoading: false 

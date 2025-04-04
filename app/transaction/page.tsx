@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -23,6 +23,7 @@ export default function TransactionForm() {
   const router = useRouter();
   const { toast } = useToast();
   const { addTransaction } = useTransactionStore();
+  const [isLoading, setIsLoading] = useState(false);
   
   // Core transaction details
   const [selectedAccount, setSelectedAccount] = useState("");
@@ -47,7 +48,7 @@ export default function TransactionForm() {
   const [creditDueDate, setCreditDueDate] = useState<Date | undefined>(new Date());
   const [destinationAccount, setDestinationAccount] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Validate form based on transaction type
@@ -114,54 +115,74 @@ export default function TransactionForm() {
       return;
     }
 
-    // Create transaction object
-    const transaction = {
-      id: `temp-${Date.now()}`, // This would be replaced by the server-generated ID
+    // Determine the actual transaction type for the API
+    let apiTransactionType = transactionType;
+    if (transactionType === "regular") {
+      apiTransactionType = direction === "received" ? "income" : "expense";
+    }
+
+    // Create transaction object for API
+    const transactionData = {
       accountId: selectedAccount,
       amount: parseFloat(amount),
       description,
       date: date?.toISOString() || new Date().toISOString(),
-      type: transactionType,
+      type: apiTransactionType,
       categoryId: category || undefined,
       counterparty,
       appUsed,
       toAccountId: isTransfer ? destinationAccount : undefined,
       creditType: isCredit ? creditType : undefined,
       dueDate: isCredit ? creditDueDate?.toISOString() : undefined,
-      frequency: isRecurring ? recurringFrequency : undefined,
+      recurring: isRecurring,
+      recurringFrequency: isRecurring ? recurringFrequency : undefined,
       recurringName: isRecurring ? recurringName : undefined,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
     };
 
-    console.log(transaction);
+    try {
+      setIsLoading(true);
+      
+      // Use the store's addTransaction method which handles both UI update and API call
+      await addTransaction({
+        id: `temp-${Date.now()}`,
+        ...transactionData,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
 
-    // Add transaction to store
-    addTransaction(transaction);
+      // Prepare appropriate message based on transaction type
+      let message = "";
+      if (transactionType === "regular") {
+        message = `${direction === "received" ? "Received" : "Sent"} $${amount} ${
+          direction === "received" ? "from" : "to"
+        } ${counterparty}`;
+      } else if (transactionType === "credit") {
+        message = `${creditType === "lent" ? "Lent" : "Borrowed"} $${amount} ${
+          creditType === "lent" ? "to" : "from"
+        } ${counterparty}`;
+      } else if (transactionType === "recurring") {
+        message = `Added recurring payment "${recurringName}" of $${amount} (${recurringFrequency})`;
+      } else if (transactionType === "transfer") {
+        message = `Transferred $${amount} between accounts`;
+      }
 
-    // Prepare appropriate message based on transaction type
-    let message = "";
-    if (transactionType === "regular") {
-      message = `${direction === "received" ? "Received" : "Sent"} $${amount} ${
-        direction === "received" ? "from" : "to"
-      } ${counterparty}`;
-    } else if (transactionType === "credit") {
-      message = `${creditType === "lent" ? "Lent" : "Borrowed"} $${amount} ${
-        creditType === "lent" ? "to" : "from"
-      } ${counterparty}`;
-    } else if (transactionType === "recurring") {
-      message = `Added recurring payment "${recurringName}" of $${amount} (${recurringFrequency})`;
-    } else if (transactionType === "transfer") {
-      message = `Transferred $${amount} between accounts`;
+      toast({
+        title: "Transaction Saved",
+        description: message,
+      });
+
+      // Navigate back to transactions page
+      router.push("/transactions");
+    } catch (error) {
+      console.error('Error saving transaction:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to save transaction",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
     }
-
-    toast({
-      title: "Transaction Saved",
-      description: message,
-    });
-
-    // Navigate back to transactions page
-    router.push("/transactions");
   };
 
   return (
@@ -335,7 +356,9 @@ export default function TransactionForm() {
             <Button type="button" variant="outline" onClick={() => router.back()}>
               Cancel
             </Button>
-            <Button type="submit">Save Transaction</Button>
+            <Button type="submit" disabled={isLoading}>
+              {isLoading ? "Saving..." : "Save Transaction"}
+            </Button>
           </div>
         </form>
       </Card>

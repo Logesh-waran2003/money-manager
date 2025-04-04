@@ -37,17 +37,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // If this is set as default, unset any existing default account
-    if (data.isDefault) {
-      await prisma.account.updateMany({
-        where: { 
-          userId: user.id,
-          isDefault: true 
-        },
-        data: { isDefault: false },
-      });
-    }
-
     // Create the account
     const account = await prisma.account.create({
       data: {
