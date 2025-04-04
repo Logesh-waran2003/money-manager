@@ -60,28 +60,19 @@ export async function POST(request: NextRequest) {
       },
     });
 
-<<<<<<< HEAD
-    // Add empty subcategories array to match interface
-    const categoryWithEmptySubCategories = {
-      ...category,
-      subCategories: [],
-    };
-
-    return NextResponse.json(categoryWithEmptySubCategories);
-=======
-    // Map to the format expected by the frontend
+    // Map to the format expected by the frontend and add subcategories
     const mappedCategory = {
       id: category.id,
       name: category.name,
       type: category.isIncome ? 'income' : 'expense',
       color: category.color,
       icon: category.icon || undefined,
+      subCategories: [], // Add empty subcategories array for compatibility
       createdAt: category.createdAt.toISOString(),
       updatedAt: category.updatedAt.toISOString(),
     };
 
     return NextResponse.json(mappedCategory);
->>>>>>> feature/transaction-form
   } catch (error) {
     console.error('Error creating category:', error);
     return NextResponse.json({ error: 'Failed to create category' }, { status: 500 });
