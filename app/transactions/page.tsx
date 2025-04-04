@@ -99,6 +99,11 @@ export default function TransactionsPage() {
     setFilters({});
   };
 
+  // Handle transaction click
+  const handleTransactionClick = (id: string) => {
+    router.push(`/transactions/${id}`);
+  };
+
   // State for filter visibility
   const [showFilters, setShowFilters] = useState(false);
 
