@@ -15,6 +15,9 @@ export interface Transaction {
   type: TransactionType;
   appUsed?: string;
   notes?: string;
+  recurringName?: string;
+  recurringFrequency?: string;
+  nextDueDate?: string;
   createdAt: string;
   updatedAt: string;
 }

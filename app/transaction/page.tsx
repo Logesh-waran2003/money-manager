@@ -61,6 +61,9 @@ export default function TransactionForm() {
   const [transactionType, setTransactionType] = useState("regular");
   const [recurringName, setRecurringName] = useState("");
   const [recurringFrequency, setRecurringFrequency] = useState("monthly");
+  const [nextDueDate, setNextDueDate] = useState<Date | undefined>(
+    new Date(new Date().setMonth(new Date().getMonth() + 1))
+  );
   const [creditType, setCreditType] = useState("lent");
   const [creditDueDate, setCreditDueDate] = useState<Date | undefined>(new Date());
   const [destinationAccount, setDestinationAccount] = useState("");
@@ -154,6 +157,7 @@ export default function TransactionForm() {
       recurring: isRecurring,
       recurringFrequency: isRecurring ? recurringFrequency : undefined,
       recurringName: isRecurring ? recurringName : undefined,
+      nextDueDate: isRecurring ? nextDueDate?.toISOString() : undefined,
     };
 
     try {
@@ -326,6 +330,35 @@ export default function TransactionForm() {
                   { value: "yearly", label: "Yearly" },
                 ]}
               />
+            </div>
+          )}
+          
+          {isRecurring && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Next Due Date</label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start text-left font-normal"
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {nextDueDate ? (
+                      format(nextDueDate, "PPP")
+                    ) : (
+                      <span>Pick a date</span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar
+                    mode="single"
+                    selected={nextDueDate}
+                    onSelect={setNextDueDate}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
           )}
           
