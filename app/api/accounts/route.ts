@@ -24,16 +24,20 @@ export async function GET(request: NextRequest) {
     // Only add isActive filter if we're not including inactive accounts
     if (!includeInactive) {
       const accounts = await prisma.account.findMany({
-        ...query,
-        where: {
-          ...query.where,
-          isActive: true
-        }
+        where: { 
+          userId: user.id,
+        },
+        orderBy: { name: 'asc' },
       });
       return NextResponse.json(accounts);
     } else {
       // Get all accounts regardless of active status
-      const accounts = await prisma.account.findMany(query);
+      const accounts = await prisma.account.findMany({
+        where: { 
+          userId: user.id,
+        },
+        orderBy: { name: 'asc' },
+      });
       return NextResponse.json(accounts);
     }
   } catch (error) {
