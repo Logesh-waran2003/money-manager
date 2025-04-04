@@ -89,6 +89,24 @@ export default function TransactionsPage() {
     .filter(t => t.type === 'expense')
     .reduce((sum, t) => sum + t.amount, 0);
 
+  // Clear filters
+  const handleClearFilters = () => {
+    setSearchQuery("");
+    setDateRange(undefined);
+    setSelectedAccountId("all");
+    setSelectedCategoryId("all");
+    setSelectedType("all");
+    setFilters({});
+  };
+
+  // State for filter visibility
+  const [showFilters, setShowFilters] = useState(false);
+
+  // Toggle filter visibility
+  const toggleFilters = () => {
+    setShowFilters(!showFilters);
+  };
+
   // Apply filters
   const handleApplyFilters = () => {
     setFilters({
@@ -101,29 +119,14 @@ export default function TransactionsPage() {
     });
   };
 
-  // Clear filters
-  const handleClearFilters = () => {
-    setSearchQuery("");
-    setDateRange(undefined);
-    setSelectedAccountId("all");
-    setSelectedCategoryId("all");
-    setSelectedType("all");
-    setFilters({});
-  };
-
-  // Handle transaction click
-  const handleTransactionClick = (id: string) => {
-    router.push(`/transactions/${id}`);
-  };
-
   return (
     <div className="container mx-auto py-8 px-4">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Transactions</h1>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={toggleFilters}>
             <Filter className="h-4 w-4 mr-2" />
-            Filter
+            {showFilters ? "Hide Filters" : "Show Filters"}
           </Button>
           <Link href="/transaction">
             <Button size="sm">
@@ -135,13 +138,14 @@ export default function TransactionsPage() {
       </div>
 
       {/* Filter Card */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Filter className="h-4 w-4" />
-            Filters
-          </CardTitle>
-        </CardHeader>
+      {showFilters && (
+        <Card className="mb-6">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Filter className="h-4 w-4" />
+              Filters
+            </CardTitle>
+          </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1">
@@ -230,6 +234,7 @@ export default function TransactionsPage() {
           </div>
         </CardContent>
       </Card>
+      )}
 
       {/* Summary Card */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 my-6">
