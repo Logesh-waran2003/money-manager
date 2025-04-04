@@ -49,8 +49,11 @@ interface TransactionCardProps {
   category: TransactionCategory;
   counterparty: string;
   accountName?: string;
+  accountId?: string;
+  toAccountId?: string;
   onClick?: () => void;
   className?: string;
+  showInAccount?: boolean;
 }
 
 export function TransactionCard({
@@ -62,8 +65,11 @@ export function TransactionCard({
   category,
   counterparty,
   accountName,
+  accountId,
+  toAccountId,
   onClick,
   className,
+  showInAccount = false,
 }: TransactionCardProps) {
   // Get category icon
   const getCategoryIcon = () => {
@@ -147,9 +153,18 @@ export function TransactionCard({
           <div className={cn(
             "font-medium font-mono",
             type === "income" ? "text-success" : 
-            type === "expense" ? "text-error" : ""
+            type === "expense" ? "text-error" : 
+            type === "transfer" && showInAccount ? (
+              // For transfers in account view
+              accountId === toAccountId ? "text-success" : "text-error"
+            ) : ""
           )}>
-            {type === "income" ? "+" : type === "expense" ? "-" : ""}
+            {type === "income" ? "+" : 
+             type === "expense" ? "-" : 
+             type === "transfer" && showInAccount ? (
+               // For transfers in account view
+               accountId === toAccountId ? "+" : "-"
+             ) : ""}
             {formatCurrency(amount)}
           </div>
           <div className="text-xs text-muted-foreground">{formattedDate}</div>

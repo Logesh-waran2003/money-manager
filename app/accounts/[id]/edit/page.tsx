@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
@@ -28,88 +28,175 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAccountStore } from "@/lib/stores/account-store";
 import { AlertCircle } from "lucide-react";
-import { isValidCurrencyAmount } from "@/lib/utils/validation";
 
 // Define form schema
 const formSchema = z.object({
   name: z.string().min(1, { message: "Account name is required" }),
-  type: z.enum(["bank", "credit", "cash", "investment"]),
-  balance: z.string().refine(isValidCurrencyAmount, {
+  type: z.enum(["bank", "credit", "debit", "cash"]),
+  balance: z.string().refine((val) => !isNaN(parseFloat(val)), {
     message: "Please enter a valid amount",
   }),
-  currency: z.string().min(1, { message: "Currency is required" }),
   accountNumber: z.string().optional(),
   institution: z.string().optional(),
   notes: z.string().optional(),
+  // Credit card specific fields
+  creditLimit: z.string().optional(),
+  dueDate: z.string().optional(),
 });
 
-export default function EditAccountPage() {
+export default function EditAccountPage({ params }: { params: { id: string } }) {
   const router = useRouter();
-  const params = useParams();
-  const accountId = params.id as string;
+  console.log("Edit account page loaded with ID:", params.id);
+  const accountId = params.id;
   
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { accounts, updateAccount } = useAccountStore();
+  const { accounts, updateAccount, fetchAccounts } = useAccountStore();
+  const [accountType, setAccountType] = useState("bank");
+  
+  // Ensure accounts are loaded
+  useEffect(() => {
+    console.log("Checking if accounts need to be loaded...");
+    const loadAccounts = async () => {
+      console.log("Loading accounts...");
+      await fetchAccounts();
+      console.log("Accounts loaded, count:", accounts.length);
+    };
+    
+    if (accounts.length === 0) {
+      console.log("No accounts in store, fetching...");
+      loadAccounts();
+    }
+  }, [accounts.length, fetchAccounts]);
   
   // Find the account to edit
   const account = accounts.find(acc => acc.id === accountId);
+  console.log("Accounts in store:", accounts.length);
+  console.log("Looking for account ID:", accountId);
+  console.log("Found account:", account ? "yes" : "no");
   
-  // Initialize form
+  // Initialize form with default values
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      name: "",
-      type: "bank",
-      balance: "0",
-      currency: "USD",
-      accountNumber: "",
-      institution: "",
-      notes: "",
+      name: account?.name || "",
+      type: (account?.type as any) || "bank",
+      balance: account ? account.balance.toString() : "0",
+      accountNumber: account?.accountNumber || "",
+      institution: account?.institution || "",
+      notes: account?.notes || "",
+      creditLimit: account?.creditLimit?.toString() || "",
+      dueDate: account?.dueDate ? new Date(account.dueDate).toISOString().split('T')[0] : "",
     },
   });
   
+  // Watch for account type changes
+  React.useEffect(() => {
+    const subscription = form.watch((value, { name }) => {
+      if (name === "type") {
+        setAccountType(value.type || "bank");
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [form.watch]);
+  
   // Populate form with account data when it's available
   useEffect(() => {
-    if (account) {
-      form.reset({
-        name: account.name,
-        type: account.type,
-        balance: account.balance.toString(),
-        currency: account.currency,
-        accountNumber: account.accountNumber || "",
-        institution: account.institution || "",
-        notes: account.notes || "",
-      });
-    } else {
-      // If account not found, redirect to accounts page
-      router.push("/accounts");
-    }
-  }, [account, form, router]);
+    console.log("useEffect running, account:", account ? account.id : "not found");
+    
+    // Add a small delay to ensure the store is properly loaded
+    const timer = setTimeout(() => {
+      const foundAccount = accounts.find(acc => acc.id === accountId);
+      console.log("After delay, account found:", foundAccount ? foundAccount.id : "not found");
+      
+      if (foundAccount) {
+        setAccountType(foundAccount.type);
+        form.reset({
+          name: foundAccount.name,
+          type: foundAccount.type,
+          balance: foundAccount.balance.toString(),
+          accountNumber: foundAccount.accountNumber || "",
+          institution: foundAccount.institution || "",
+          notes: foundAccount.notes || "",
+          creditLimit: foundAccount.creditLimit?.toString() || "",
+          dueDate: foundAccount.dueDate ? new Date(foundAccount.dueDate).toISOString().split('T')[0] : "",
+        });
+      } else {
+        console.log("Account not found after delay, redirecting");
+        // Don't redirect automatically, let the user see the error
+        setError("Account not found. Please try again or go back to accounts.");
+      }
+    }, 1000); // Increased timeout to give more time for accounts to load
+    
+    return () => clearTimeout(timer);
+  }, [accounts, accountId, form, router]);
 
   // Handle form submission
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
     setError(null);
+    console.log("Submitting form with values:", values);
 
     try {
-      // Convert balance to number
-      const balance = parseFloat(values.balance.replace(/[^0-9.-]/g, ""));
+      // Use the existing balance, don't allow changes
+      const balance = account?.balance || 0;
 
-      // Update the account
-      updateAccount(accountId, {
+      // Prepare account data
+      const accountData: any = {
         name: values.name,
-        type: values.type,
-        balance,
-        currency: values.currency,
-        accountNumber: values.accountNumber,
-        institution: values.institution,
-        notes: values.notes,
-      });
+        type: account?.type || values.type, // Keep the original type
+        balance, // Keep the original balance
+        currency: "USD", // Default to USD
+        notes: values.notes || undefined,
+      };
       
-      // Redirect to accounts page
-      router.push("/accounts");
+      // Only add these fields if not a cash account
+      if (accountType !== "cash") {
+        accountData.accountNumber = values.accountNumber || undefined;
+        accountData.institution = values.institution || undefined;
+      }
+      
+      // Add credit card specific fields if applicable
+      if (accountType === "credit" && values.creditLimit) {
+        accountData.creditLimit = parseFloat(values.creditLimit);
+        
+        if (values.dueDate) {
+          accountData.dueDate = new Date(values.dueDate);
+        }
+      }
+
+      console.log("Updating account with data:", accountData);
+
+      // Update the account in local store
+      updateAccount(accountId, accountData);
+      
+      // Make API call to update in database
+      try {
+        console.log("Making API call to update account...");
+        const response = await fetch(`/api/accounts/${accountId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(accountData),
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error("API error:", errorData);
+          throw new Error(errorData.error || 'Failed to update account');
+        }
+        
+        console.log("Account updated in database successfully");
+        
+        // Redirect to accounts page
+        window.location.href = "/accounts";
+      } catch (apiError) {
+        console.error("Error updating account in database:", apiError);
+        throw new Error("Failed to update account in database");
+      }
     } catch (err) {
+      console.error("Form submission error:", err);
       setError(err instanceof Error ? err.message : "Failed to update account. Please try again.");
     } finally {
       setIsLoading(false);
@@ -167,23 +254,16 @@ export default function EditAccountPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Account Type</FormLabel>
-                      <Select 
-                        disabled={isLoading} 
-                        onValueChange={field.onChange} 
-                        value={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select account type" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="bank">Bank Account</SelectItem>
-                          <SelectItem value="credit">Credit Card</SelectItem>
-                          <SelectItem value="cash">Cash</SelectItem>
-                          <SelectItem value="investment">Investment</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <FormControl>
+                        <Input 
+                          value={field.value.charAt(0).toUpperCase() + field.value.slice(1)} 
+                          disabled={true}
+                          readOnly
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Account type cannot be changed after creation
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -198,84 +278,111 @@ export default function EditAccountPage() {
                       <FormControl>
                         <Input 
                           placeholder="0.00" 
-                          disabled={isLoading} 
+                          disabled={true}
+                          readOnly
                           {...field} 
-                          onChange={(e) => {
-                            // Allow only numbers, decimal point, and negative sign
-                            const value = e.target.value.replace(/[^0-9.-]/g, "");
-                            field.onChange(value);
-                          }}
                         />
                       </FormControl>
                       <FormDescription>
-                        Enter the current balance of this account
+                        Balance is updated through transactions
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
 
-                <FormField
-                  control={form.control}
-                  name="currency"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Currency</FormLabel>
-                      <Select 
-                        disabled={isLoading} 
-                        onValueChange={field.onChange} 
-                        value={field.value}
-                      >
+                {accountType !== "cash" && (
+                  <FormField
+                    control={form.control}
+                    name="institution"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Institution</FormLabel>
                         <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select currency" />
-                          </SelectTrigger>
+                          <Input 
+                            placeholder={accountType === "credit" ? "Card issuer" : "Bank name"} 
+                            disabled={isLoading} 
+                            {...field} 
+                          />
                         </FormControl>
-                        <SelectContent>
-                          <SelectItem value="USD">USD - US Dollar</SelectItem>
-                          <SelectItem value="EUR">EUR - Euro</SelectItem>
-                          <SelectItem value="GBP">GBP - British Pound</SelectItem>
-                          <SelectItem value="JPY">JPY - Japanese Yen</SelectItem>
-                          <SelectItem value="CAD">CAD - Canadian Dollar</SelectItem>
-                          <SelectItem value="AUD">AUD - Australian Dollar</SelectItem>
-                          <SelectItem value="INR">INR - Indian Rupee</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
 
-                <FormField
-                  control={form.control}
-                  name="institution"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Institution (Optional)</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Bank name" disabled={isLoading} {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                {accountType !== "cash" && (
+                  <FormField
+                    control={form.control}
+                    name="accountNumber"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          {accountType === "credit" || accountType === "debit" 
+                            ? "Card Number (Last 4 digits)" 
+                            : "Account Number"}
+                        </FormLabel>
+                        <FormControl>
+                          <Input 
+                            placeholder="Last 4 digits" 
+                            disabled={isLoading} 
+                            {...field} 
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          For your reference only
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
 
-                <FormField
-                  control={form.control}
-                  name="accountNumber"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Account Number (Optional)</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Last 4 digits" disabled={isLoading} {...field} />
-                      </FormControl>
-                      <FormDescription>
-                        For your reference only
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                {accountType === "credit" && (
+                  <FormField
+                    control={form.control}
+                    name="creditLimit"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Credit Limit</FormLabel>
+                        <FormControl>
+                          <Input 
+                            placeholder="5000.00" 
+                            disabled={isLoading} 
+                            {...field} 
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Your total available credit
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+
+                {accountType === "credit" && (
+                  <FormField
+                    control={form.control}
+                    name="dueDate"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Payment Due Date</FormLabel>
+                        <FormControl>
+                          <Input 
+                            type="date" 
+                            disabled={isLoading} 
+                            {...field} 
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          When your next payment is due
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
               </div>
 
               <FormField

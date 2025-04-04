@@ -13,12 +13,16 @@ export async function GET(request: NextRequest) {
     const categories = await prisma.category.findMany({
       where: { userId: user.id },
       orderBy: { name: 'asc' },
-      include: {
-        subCategories: true,
-      },
     });
 
-    return NextResponse.json(categories);
+    // Since we don't have actual subcategories in the database schema,
+    // we'll add an empty array to match the expected interface
+    const categoriesWithEmptySubCategories = categories.map(category => ({
+      ...category,
+      subCategories: [],
+    }));
+
+    return NextResponse.json(categoriesWithEmptySubCategories);
   } catch (error) {
     console.error('Error fetching categories:', error);
     return NextResponse.json({ error: 'Failed to fetch categories' }, { status: 500 });
@@ -60,12 +64,15 @@ export async function POST(request: NextRequest) {
         ...data,
         userId: user.id,
       },
-      include: {
-        subCategories: true,
-      },
     });
 
-    return NextResponse.json(category);
+    // Add empty subcategories array to match interface
+    const categoryWithEmptySubCategories = {
+      ...category,
+      subCategories: [],
+    };
+
+    return NextResponse.json(categoryWithEmptySubCategories);
   } catch (error) {
     console.error('Error creating category:', error);
     return NextResponse.json({ error: 'Failed to create category' }, { status: 500 });

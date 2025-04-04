@@ -13,8 +13,8 @@ import { PlusCircle } from "lucide-react";
 export default function DashboardPage() {
   const { isAuthenticated } = useAuthStore();
   const router = useRouter();
-  const { data: accounts, isLoading: accountsLoading } = useAccounts();
-  const { data: transactions, isLoading: transactionsLoading } = useTransactions();
+  const { accounts } = useAccounts();
+  const { transactions } = useTransactions();
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -54,14 +54,10 @@ export default function DashboardPage() {
           <CardHeader className="pb-2">
             <CardDescription>Total Balance</CardDescription>
             <CardTitle className="text-2xl">
-              {accountsLoading ? (
-                <Skeleton className="h-8 w-24" />
-              ) : (
-                new Intl.NumberFormat("en-US", {
-                  style: "currency",
-                  currency: "USD",
-                }).format(totalBalance)
-              )}
+              {new Intl.NumberFormat("en-US", {
+                style: "currency",
+                currency: "USD",
+              }).format(totalBalance)}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -76,14 +72,10 @@ export default function DashboardPage() {
           <CardHeader className="pb-2">
             <CardDescription>Credit Card Debt</CardDescription>
             <CardTitle className="text-2xl">
-              {accountsLoading ? (
-                <Skeleton className="h-8 w-24" />
-              ) : (
-                new Intl.NumberFormat("en-US", {
-                  style: "currency",
-                  currency: "USD",
-                }).format(totalCreditDebt)
-              )}
+              {new Intl.NumberFormat("en-US", {
+                style: "currency",
+                currency: "USD",
+              }).format(totalCreditDebt)}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -98,11 +90,7 @@ export default function DashboardPage() {
           <CardHeader className="pb-2">
             <CardDescription>Accounts</CardDescription>
             <CardTitle className="text-2xl">
-              {accountsLoading ? (
-                <Skeleton className="h-8 w-24" />
-              ) : (
-                accounts?.length || 0
-              )}
+              {accounts?.length || 0}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -120,13 +108,7 @@ export default function DashboardPage() {
           <CardDescription>Your latest financial activity</CardDescription>
         </CardHeader>
         <CardContent>
-          {transactionsLoading ? (
-            <div className="space-y-2">
-              {[...Array(5)].map((_, i) => (
-                <Skeleton key={i} className="h-12 w-full" />
-              ))}
-            </div>
-          ) : recentTransactions.length > 0 ? (
+          {recentTransactions.length > 0 ? (
             <div className="space-y-4">
               {recentTransactions.map((transaction) => (
                 <div
@@ -139,8 +121,14 @@ export default function DashboardPage() {
                       {new Date(transaction.date).toLocaleDateString()}
                     </p>
                   </div>
-                  <div className={transaction.type === "expense" ? "text-red-500" : "text-green-500"}>
-                    {transaction.type === "expense" ? "-" : "+"}
+                  <div className={
+                    transaction.type === "expense" ? "text-red-500" : 
+                    transaction.type === "income" ? "text-green-500" : 
+                    "text-blue-500"
+                  }>
+                    {transaction.type === "expense" ? "-" : 
+                     transaction.type === "income" ? "+" : 
+                     transaction.type === "transfer" ? "↔" : "+"}
                     {new Intl.NumberFormat("en-US", {
                       style: "currency",
                       currency: "USD",

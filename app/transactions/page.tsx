@@ -51,7 +51,7 @@ export default function TransactionsPage() {
       endDate: dateRange?.to?.toISOString(),
       accountId: selectedAccountId,
       categoryId: selectedCategoryId,
-      type: selectedType as any,
+      type: selectedType,
     });
   };
 
@@ -82,7 +82,7 @@ export default function TransactionsPage() {
         </Link>
       </div>
 
-      {/* Filters */}
+      {/* Filter Card */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-lg flex items-center gap-2">
@@ -90,13 +90,14 @@ export default function TransactionsPage() {
             Filters
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-            <div>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex-1">
               <label className="text-sm font-medium mb-1 block">Search</label>
               <div className="relative">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
+                  type="search"
                   placeholder="Search transactions..."
                   className="pl-8"
                   value={searchQuery}
@@ -105,14 +106,16 @@ export default function TransactionsPage() {
               </div>
             </div>
             
-            <div>
+            <div className="flex-1">
               <label className="text-sm font-medium mb-1 block">Date Range</label>
               <DateRangePicker
                 value={dateRange}
                 onChange={setDateRange}
               />
             </div>
-            
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="text-sm font-medium mb-1 block">Account</label>
               <Select
@@ -248,6 +251,8 @@ export default function TransactionsPage() {
                   category={transaction.categoryId ? "other" as any : "other" as any} // This would come from the category
                   counterparty={transaction.counterparty || ""}
                   accountName={accounts.find(a => a.id === transaction.accountId)?.name}
+                  accountId={transaction.accountId}
+                  toAccountId={transaction.toAccountId}
                   onClick={() => handleTransactionClick(transaction.id)}
                 />
               ))}
