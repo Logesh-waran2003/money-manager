@@ -42,6 +42,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
+    // Get the account to check its type
+    const account = await prisma.account.findUnique({
+      where: { id: data.accountId },
+    });
+
+    if (!account) {
+      return NextResponse.json({ error: 'Account not found' }, { status: 404 });
+    }
+
     // Create the transaction
     const transaction = await prisma.transaction.create({
       data: {
@@ -56,38 +65,100 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Update account balances based on transaction type
+    // Update account balances based on transaction type and account type
     if (data.type === 'expense') {
-      await prisma.account.update({
-        where: { id: data.accountId },
-        data: { balance: { decrement: data.amount } },
-      });
+      // For credit cards, spending money increases the balance (debt)
+      if (account.type === 'credit') {
+        await prisma.account.update({
+          where: { id: data.accountId },
+          data: { balance: { increment: data.amount } },
+        });
+      } else {
+        // For regular accounts, spending money decreases the balance
+        await prisma.account.update({
+          where: { id: data.accountId },
+          data: { balance: { decrement: data.amount } },
+        });
+      }
     } else if (data.type === 'income') {
-      await prisma.account.update({
-        where: { id: data.accountId },
-        data: { balance: { increment: data.amount } },
-      });
+      // For credit cards, receiving money (payment) decreases the balance (debt)
+      if (account.type === 'credit') {
+        await prisma.account.update({
+          where: { id: data.accountId },
+          data: { balance: { decrement: data.amount } },
+        });
+      } else {
+        // For regular accounts, receiving money increases the balance
+        await prisma.account.update({
+          where: { id: data.accountId },
+          data: { balance: { increment: data.amount } },
+        });
+      }
     } else if (data.type === 'transfer' && data.toAccountId) {
-      await prisma.account.update({
-        where: { id: data.accountId },
-        data: { balance: { decrement: data.amount } },
-      });
-      await prisma.account.update({
+      const toAccount = await prisma.account.findUnique({
         where: { id: data.toAccountId },
-        data: { balance: { increment: data.amount } },
       });
-    } else if (data.type === 'credit' && data.creditType === 'borrowed') {
-      // For credit card purchases, increase the balance (debt)
-      await prisma.account.update({
-        where: { id: data.accountId },
-        data: { balance: { increment: data.amount } },
-      });
-    } else if (data.type === 'credit' && data.creditType === 'lent') {
-      // For credit card payments, decrease the balance (debt)
-      await prisma.account.update({
-        where: { id: data.accountId },
-        data: { balance: { decrement: data.amount } },
-      });
+
+      if (!toAccount) {
+        return NextResponse.json({ error: 'Destination account not found' }, { status: 404 });
+      }
+
+      // Handle transfers based on account types
+      if (account.type === 'credit' && toAccount.type === 'credit') {
+        // Credit to credit: source decreases (payment), destination increases (debt)
+        await prisma.account.update({
+          where: { id: data.accountId },
+          data: { balance: { decrement: data.amount } },
+        });
+        await prisma.account.update({
+          where: { id: data.toAccountId },
+          data: { balance: { increment: data.amount } },
+        });
+      } else if (account.type === 'credit') {
+        // Credit to regular: source increases (cash advance), destination increases (deposit)
+        await prisma.account.update({
+          where: { id: data.accountId },
+          data: { balance: { increment: data.amount } },
+        });
+        await prisma.account.update({
+          where: { id: data.toAccountId },
+          data: { balance: { increment: data.amount } },
+        });
+      } else if (toAccount.type === 'credit') {
+        // Regular to credit: source decreases (withdrawal), destination decreases (payment)
+        await prisma.account.update({
+          where: { id: data.accountId },
+          data: { balance: { decrement: data.amount } },
+        });
+        await prisma.account.update({
+          where: { id: data.toAccountId },
+          data: { balance: { decrement: data.amount } },
+        });
+      } else {
+        // Regular to regular: source decreases, destination increases
+        await prisma.account.update({
+          where: { id: data.accountId },
+          data: { balance: { decrement: data.amount } },
+        });
+        await prisma.account.update({
+          where: { id: data.toAccountId },
+          data: { balance: { increment: data.amount } },
+        });
+      }
+    } else if (data.type === 'credit') {
+      if (data.creditType === 'borrowed') {
+        // For borrowing money (making a purchase), increase the balance (debt)
+        await prisma.account.update({
+          where: { id: data.accountId },
+          data: { balance: { increment: data.amount } },
+        });
+      } else if (data.creditType === 'lent') {
+        // For lending money (making a payment), decrease the balance (debt)
+        await prisma.account.update({
+          where: { id: data.accountId },
+          data: { balance: { decrement: data.amount } },
+        });
+      }
     }
 
     return NextResponse.json(transaction);

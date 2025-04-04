@@ -15,14 +15,19 @@ export async function GET(request: NextRequest) {
       orderBy: { name: 'asc' },
     });
 
-    // Since we don't have actual subcategories in the database schema,
-    // we'll add an empty array to match the expected interface
-    const categoriesWithEmptySubCategories = categories.map(category => ({
-      ...category,
-      subCategories: [],
+    // Map database categories to the format expected by the frontend
+    const mappedCategories = categories.map(category => ({
+      id: category.id,
+      name: category.name,
+      type: category.isIncome ? 'income' : 'expense',
+      color: category.color,
+      icon: category.icon || undefined,
+      subCategories: [], // Add empty subcategories array for compatibility
+      createdAt: category.createdAt.toISOString(),
+      updatedAt: category.updatedAt.toISOString(),
     }));
 
-    return NextResponse.json(categoriesWithEmptySubCategories);
+    return NextResponse.json(mappedCategories);
   } catch (error) {
     console.error('Error fetching categories:', error);
     return NextResponse.json({ error: 'Failed to fetch categories' }, { status: 500 });
@@ -44,28 +49,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // If parentId is provided, verify it exists
-    if (data.parentId) {
-      const parentCategory = await prisma.category.findUnique({
-        where: {
-          id: data.parentId,
-          userId: user.id,
-        },
-      });
-
-      if (!parentCategory) {
-        return NextResponse.json({ error: 'Parent category not found' }, { status: 404 });
-      }
-    }
-
     // Create the category
     const category = await prisma.category.create({
       data: {
-        ...data,
+        name: data.name,
+        isIncome: data.type === 'income',
+        color: data.color || '#000000',
+        icon: data.icon,
         userId: user.id,
       },
     });
 
+<<<<<<< HEAD
     // Add empty subcategories array to match interface
     const categoryWithEmptySubCategories = {
       ...category,
@@ -73,6 +68,20 @@ export async function POST(request: NextRequest) {
     };
 
     return NextResponse.json(categoryWithEmptySubCategories);
+=======
+    // Map to the format expected by the frontend
+    const mappedCategory = {
+      id: category.id,
+      name: category.name,
+      type: category.isIncome ? 'income' : 'expense',
+      color: category.color,
+      icon: category.icon || undefined,
+      createdAt: category.createdAt.toISOString(),
+      updatedAt: category.updatedAt.toISOString(),
+    };
+
+    return NextResponse.json(mappedCategory);
+>>>>>>> feature/transaction-form
   } catch (error) {
     console.error('Error creating category:', error);
     return NextResponse.json({ error: 'Failed to create category' }, { status: 500 });

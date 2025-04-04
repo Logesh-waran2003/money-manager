@@ -39,7 +39,7 @@ interface TransactionStore {
   
   // Actions
   fetchTransactions: () => Promise<void>;
-  addTransaction: (transaction: Transaction) => void;
+  addTransaction: (transaction: Transaction) => Promise<Transaction>;
   updateTransaction: (id: string, data: Partial<Transaction>) => void;
   deleteTransaction: (id: string) => void;
   setFilters: (filters: TransactionFilters) => void;
@@ -155,17 +155,16 @@ export const useTransactionStore = create<TransactionStore>()(
         fetchTransactions: async () => {
           set({ isLoading: true, error: null });
           try {
-            // In a real app, this would be an API call
-            // const response = await fetch('/api/transactions');
-            // const data = await response.json();
-            // set({ transactions: data, isLoading: false });
+            const response = await fetch('/api/transactions');
             
-            // For now, we'll just simulate a delay
-            await new Promise(resolve => setTimeout(resolve, 500));
+            if (!response.ok) {
+              throw new Error('Failed to fetch transactions');
+            }
             
-            // Keep the existing transactions
-            set({ isLoading: false });
+            const data = await response.json();
+            set({ transactions: data, isLoading: false });
           } catch (error) {
+            console.error('Error fetching transactions:', error);
             set({ 
               error: error instanceof Error ? error.message : 'Failed to fetch transactions', 
               isLoading: false 
@@ -173,18 +172,52 @@ export const useTransactionStore = create<TransactionStore>()(
           }
         },
 
-        addTransaction: (transaction) => {
-          set((state) => ({
-            transactions: [...state.transactions, transaction],
-          }));
+        addTransaction: async (transaction) => {
+          try {
+            // First add to local store optimistically
+            set((state) => ({
+              transactions: [...state.transactions, transaction],
+            }));
+            
+            // Then try to save to the API
+            const response = await fetch('/api/transactions', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(transaction),
+            });
+            
+            if (!response.ok) {
+              throw new Error('Failed to save transaction');
+            }
+            
+            // Get the saved transaction with server-generated ID
+            const savedTransaction = await response.json();
+            
+            // Replace the optimistic transaction with the saved one
+            set((state) => ({
+              transactions: state.transactions.map((t) => 
+                t.id === transaction.id ? savedTransaction : t
+              ),
+            }));
+            
+            return savedTransaction;
+          } catch (error) {
+            console.error('Error saving transaction:', error);
+            // If there was an error, remove the optimistic transaction
+            set((state) => ({
+              transactions: state.transactions.filter((t) => t.id !== transaction.id),
+              error: error instanceof Error ? error.message : 'Failed to save transaction',
+            }));
+            throw error; // Re-throw the error so the form can handle it
+          }
         },
 
         updateTransaction: (id, data) => {
           set((state) => ({
             transactions: state.transactions.map((transaction) =>
-              transaction.id === id
-                ? { ...transaction, ...data, updatedAt: new Date().toISOString() }
-                : transaction
+              transaction.id === id ? { ...transaction, ...data } : transaction
             ),
           }));
         },
