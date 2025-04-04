@@ -45,11 +45,72 @@ interface TransactionStore {
   setFilters: (filters: TransactionFilters) => void;
 }
 
+// Sample transaction data for development
+const sampleTransactions: Transaction[] = [
+  {
+    id: '1',
+    accountId: 'account1',
+    amount: 1200,
+    date: '2025-04-01',
+    description: 'Salary',
+    counterparty: 'Employer Inc.',
+    type: 'income',
+    createdAt: '2025-04-01T10:00:00Z',
+    updatedAt: '2025-04-01T10:00:00Z',
+  },
+  {
+    id: '2',
+    accountId: 'account1',
+    amount: 85.75,
+    date: '2025-04-02',
+    description: 'Grocery shopping',
+    counterparty: 'Whole Foods',
+    type: 'expense',
+    categoryId: 'category1',
+    createdAt: '2025-04-02T14:30:00Z',
+    updatedAt: '2025-04-02T14:30:00Z',
+  },
+  {
+    id: '3',
+    accountId: 'account1',
+    toAccountId: 'account2',
+    amount: 500,
+    date: '2025-04-03',
+    description: 'Transfer to savings',
+    type: 'transfer',
+    createdAt: '2025-04-03T09:15:00Z',
+    updatedAt: '2025-04-03T09:15:00Z',
+  },
+  {
+    id: '4',
+    accountId: 'account2',
+    amount: 42.99,
+    date: '2025-04-03',
+    description: 'Monthly subscription',
+    counterparty: 'Netflix',
+    type: 'expense',
+    categoryId: 'category2',
+    createdAt: '2025-04-03T18:20:00Z',
+    updatedAt: '2025-04-03T18:20:00Z',
+  },
+  {
+    id: '5',
+    accountId: 'account3',
+    amount: 120,
+    date: '2025-04-04',
+    description: 'Freelance work',
+    counterparty: 'Client XYZ',
+    type: 'income',
+    createdAt: '2025-04-04T11:45:00Z',
+    updatedAt: '2025-04-04T11:45:00Z',
+  }
+];
+
 export const useTransactionStore = create<TransactionStore>()(
   devtools(
     persist(
       (set, get) => ({
-        transactions: [],
+        transactions: sampleTransactions,
         filters: {},
         isLoading: false,
         error: null,

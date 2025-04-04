@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
       type: category.isIncome ? 'income' : 'expense',
       color: category.color,
       icon: category.icon || undefined,
+      subCategories: [], // Add empty subcategories array for compatibility
       createdAt: category.createdAt.toISOString(),
       updatedAt: category.updatedAt.toISOString(),
     }));
@@ -59,13 +60,14 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Map to the format expected by the frontend
+    // Map to the format expected by the frontend and add subcategories
     const mappedCategory = {
       id: category.id,
       name: category.name,
       type: category.isIncome ? 'income' : 'expense',
       color: category.color,
       icon: category.icon || undefined,
+      subCategories: [], // Add empty subcategories array for compatibility
       createdAt: category.createdAt.toISOString(),
       updatedAt: category.updatedAt.toISOString(),
     };

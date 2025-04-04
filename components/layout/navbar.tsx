@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Home, PieChart, CreditCard, Settings, LogOut, Menu, X } from "lucide-react";
+import { Home, PieChart, CreditCard, Settings, LogOut, Menu, X, ArrowLeftRight } from "lucide-react";
 import { useState } from "react";
 
 export function Navbar() {
@@ -30,6 +30,7 @@ export function Navbar() {
     { href: "/dashboard", label: "Dashboard", icon: <Home className="h-4 w-4 mr-2" /> },
     { href: "/transactions", label: "Transactions", icon: <PieChart className="h-4 w-4 mr-2" /> },
     { href: "/accounts", label: "Accounts", icon: <CreditCard className="h-4 w-4 mr-2" /> },
+    { href: "/transfers", label: "Transfers", icon: <ArrowLeftRight className="h-4 w-4 mr-2" /> },
   ];
 
   const userInitials = user?.name

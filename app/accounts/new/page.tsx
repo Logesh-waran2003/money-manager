@@ -175,9 +175,7 @@ export default function NewAccountPage() {
                   name="balance"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>
-                        {accountType === "credit" ? "Current Balance" : "Initial Balance"}
-                      </FormLabel>
+                      <FormLabel>Current Balance</FormLabel>
                       <FormControl>
                         <Input 
                           placeholder="0.00" 
@@ -195,48 +193,52 @@ export default function NewAccountPage() {
                   )}
                 />
 
-                <FormField
-                  control={form.control}
-                  name="institution"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Institution</FormLabel>
-                      <FormControl>
-                        <Input 
-                          placeholder={accountType === "credit" ? "Card issuer" : "Bank name"} 
-                          disabled={isLoading} 
-                          {...field} 
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                {accountType !== "cash" && (
+                  <FormField
+                    control={form.control}
+                    name="institution"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Institution</FormLabel>
+                        <FormControl>
+                          <Input 
+                            placeholder={accountType === "credit" ? "Card issuer" : "Bank name"} 
+                            disabled={isLoading} 
+                            {...field} 
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
 
-                <FormField
-                  control={form.control}
-                  name="accountNumber"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>
-                        {accountType === "credit" || accountType === "debit" 
-                          ? "Card Number (Last 4 digits)" 
-                          : "Account Number"}
-                      </FormLabel>
-                      <FormControl>
-                        <Input 
-                          placeholder="Last 4 digits" 
-                          disabled={isLoading} 
-                          {...field} 
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        For your reference only
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                {accountType !== "cash" && (
+                  <FormField
+                    control={form.control}
+                    name="accountNumber"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          {accountType === "credit" || accountType === "debit" 
+                            ? "Card Number (Last 4 digits)" 
+                            : "Account Number"}
+                        </FormLabel>
+                        <FormControl>
+                          <Input 
+                            placeholder="Last 4 digits" 
+                            disabled={isLoading} 
+                            {...field} 
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          For your reference only
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
 
                 {accountType === "credit" && (
                   <FormField

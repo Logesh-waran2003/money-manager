@@ -50,7 +50,7 @@ export async function PUT(
         where: { 
           userId: user.id,
           isDefault: true,
-          id: { not: params.id }
+          id: { not: params.id } // Don't update the current account
         },
         data: { isDefault: false },
       });
@@ -72,7 +72,7 @@ export async function PUT(
   }
 }
 
-// DELETE an account by ID
+// DELETE an account by ID (or deactivate it)
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -83,33 +83,20 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check if there are any transactions associated with this account
-    const transactionCount = await prisma.transaction.count({
-      where: {
-        OR: [
-          { accountId: params.id },
-          { toAccountId: params.id }
-        ],
-      },
-    });
-
-    if (transactionCount > 0) {
-      return NextResponse.json({ 
-        error: 'Cannot delete account with associated transactions. Please delete the transactions first or transfer them to another account.' 
-      }, { status: 400 });
-    }
-
-    // Delete the account
-    await prisma.account.delete({
+    // Instead of deleting, we'll deactivate the account
+    const account = await prisma.account.update({
       where: {
         id: params.id,
         userId: user.id,
       },
+      data: {
+        isActive: false,
+      },
     });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ message: 'Account deactivated successfully' });
   } catch (error) {
-    console.error('Error deleting account:', error);
-    return NextResponse.json({ error: 'Failed to delete account' }, { status: 500 });
+    console.error('Error deactivating account:', error);
+    return NextResponse.json({ error: 'Failed to deactivate account' }, { status: 500 });
   }
 }
