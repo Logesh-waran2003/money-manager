@@ -171,6 +171,11 @@ const TransactionFormFields: React.FC<TransactionFormFieldsProps> = ({
                 I Borrowed Money
               </ToggleGroupItem>
             </ToggleGroup>
+            <p className="text-xs text-muted-foreground mt-1">
+              {creditType === "lent" 
+                ? "Select this if you lent money to someone and they need to pay you back." 
+                : "Select this if you borrowed money from someone and you need to pay them back."}
+            </p>
           </div>
         )}
 

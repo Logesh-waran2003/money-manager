@@ -117,7 +117,9 @@ export default function TransactionForm() {
     if ((transactionType === "regular" || transactionType === "credit") && !counterparty) {
       toast({
         title: "Missing Information",
-        description: "Please enter a counterparty",
+        description: "Please enter a " + (transactionType === "credit" ? 
+          (creditType === "lent" ? "recipient" : "lender") : 
+          "counterparty"),
         variant: "destructive"
       });
       return;
@@ -342,7 +344,7 @@ export default function TransactionForm() {
                     {creditDueDate ? (
                       format(creditDueDate, "PPP")
                     ) : (
-                      <span>Pick a date</span>
+                      <span>Pick a due date (optional)</span>
                     )}
                   </Button>
                 </PopoverTrigger>

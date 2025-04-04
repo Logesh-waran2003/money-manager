@@ -80,6 +80,20 @@ export function Navbar() {
                 {item.label}
               </Link>
             ))}
+            
+          {isAuthenticated && (
+            <Link
+              href="/credits"
+              className={`flex items-center text-sm font-medium transition-colors hover:text-primary ${
+                pathname === "/credits"
+                  ? "text-primary"
+                  : "text-muted-foreground"
+              }`}
+            >
+              <CreditCard className="h-4 w-4 mr-2" />
+              Credits
+            </Link>
+          )}
         </nav>
 
         <div className="ml-auto flex items-center space-x-4">
