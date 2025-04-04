@@ -37,9 +37,9 @@ export default function TransactionsPage() {
         }
       : undefined
   );
-  const [selectedAccountId, setSelectedAccountId] = useState<string | undefined>(filters.accountId);
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string | undefined>(filters.categoryId);
-  const [selectedType, setSelectedType] = useState<string | undefined>(filters.type);
+  const [selectedAccountId, setSelectedAccountId] = useState<string>(filters.accountId || "all");
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>(filters.categoryId || "all");
+  const [selectedType, setSelectedType] = useState<string>(filters.type || "all");
   
   // Fetch transactions on component mount
   useEffect(() => {
@@ -95,9 +95,9 @@ export default function TransactionsPage() {
       searchQuery,
       startDate: dateRange?.from?.toISOString(),
       endDate: dateRange?.to?.toISOString(),
-      accountId: selectedAccountId,
-      categoryId: selectedCategoryId,
-      type: selectedType,
+      accountId: selectedAccountId !== "all" ? selectedAccountId : undefined,
+      categoryId: selectedCategoryId !== "all" ? selectedCategoryId : undefined,
+      type: selectedType !== "all" ? selectedType : undefined,
     });
   };
 
@@ -105,9 +105,9 @@ export default function TransactionsPage() {
   const handleClearFilters = () => {
     setSearchQuery("");
     setDateRange(undefined);
-    setSelectedAccountId(undefined);
-    setSelectedCategoryId(undefined);
-    setSelectedType(undefined);
+    setSelectedAccountId("all");
+    setSelectedCategoryId("all");
+    setSelectedType("all");
     setFilters({});
   };
 
@@ -177,7 +177,7 @@ export default function TransactionsPage() {
                   <SelectValue placeholder="All accounts" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All accounts</SelectItem>
+                  <SelectItem value="all">All accounts</SelectItem>
                   {accounts.map((account) => (
                     <SelectItem key={account.id} value={account.id}>
                       {account.name}
@@ -194,7 +194,7 @@ export default function TransactionsPage() {
                   <SelectValue placeholder="All categories" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All categories</SelectItem>
+                  <SelectItem value="all">All categories</SelectItem>
                   {categories.map((category) => (
                     <SelectItem key={category.id} value={category.id}>
                       {category.name}
@@ -211,7 +211,7 @@ export default function TransactionsPage() {
                   <SelectValue placeholder="All types" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All types</SelectItem>
+                  <SelectItem value="all">All types</SelectItem>
                   <SelectItem value="income">Income</SelectItem>
                   <SelectItem value="expense">Expense</SelectItem>
                   <SelectItem value="transfer">Transfer</SelectItem>
