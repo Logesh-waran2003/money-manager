@@ -24,7 +24,6 @@ model User {
   transactions      Transaction[]
   categories        Category[]
   recurringPayments RecurringPayment[]
-  credits           Credit[]
 }
 
 model Account {
@@ -40,7 +39,7 @@ model Account {
   notes         String?
   creditLimit   Float?        // Only for credit accounts
   dueDate       DateTime?     // Only for credit accounts
-  isActive      Boolean       @default(true)  // New field to track account status
+  isActive      Boolean       @default(true)  // Track account status
   
   user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions  Transaction[] @relation("FromAccount")
@@ -91,7 +90,7 @@ model Transaction {
   recurringPaymentId String?
   
   // For credit transactions
-  creditId          String?
+  creditId          String?          // Reference to original credit transaction
   isRepayment       Boolean          @default(false)
   isFullSettlement  Boolean          @default(false)
   
@@ -100,7 +99,10 @@ model Transaction {
   category          Category?        @relation(fields: [categoryId], references: [id])
   toAccount         Account?         @relation("ToAccount", fields: [toAccountId], references: [id])
   recurringPayment  RecurringPayment? @relation(fields: [recurringPaymentId], references: [id])
-  credit            Credit?          @relation(fields: [creditId], references: [id])
+  
+  // Self-relation for credit repayments
+  originalCredit    Transaction?     @relation("CreditRepayments", fields: [creditId], references: [id])
+  repayments        Transaction[]    @relation("CreditRepayments")
   
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
@@ -133,44 +135,4 @@ model RecurringPayment {
   
   @@index([userId])
   @@index([nextDueDate])
-}
-
-model CreditRepayment {
-  id            String    @id @default(cuid())
-  creditId      String
-  transactionId String
-  amount        Float
-  date          DateTime
-  isFullSettlement Boolean @default(false)
-  
-  credit        Credit    @relation(fields: [creditId], references: [id], onDelete: Cascade)
-  
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  
-  @@index([creditId])
-}
-
-model Credit {
-  id            String        @id @default(cuid())
-  userId        String
-  name          String
-  amount        Float
-  type          String        // lent, borrowed
-  counterparty  String
-  dueDate       DateTime?
-  isPaid        Boolean       @default(false)
-  isFullySettled Boolean      @default(false)
-  currentBalance Float        // Remaining balance to be paid
-  notes         String?
-  
-  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  transactions  Transaction[]
-  repayments    CreditRepayment[]
-  
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  
-  @@index([userId])
-  @@index([dueDate])
 }
