@@ -7,6 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { CreditCard, Repeat, DollarSign, ArrowRightLeft } from "lucide-react";
+import CreditTransactionSelector from "@/components/credit-transaction-selector";
 
 // Payment apps list
 const paymentApps = [
@@ -204,16 +205,15 @@ const TransactionFormFields: React.FC<TransactionFormFieldsProps> = ({
             {isRepayment && (
               <div className="mt-3 space-y-2 p-3 border border-border/50 rounded-md bg-background/50">
                 <label className="text-sm font-medium">Select Existing Credit</label>
-                <select
+                <CreditTransactionSelector
                   value={selectedCreditId}
-                  onChange={(e) => setSelectedCreditId(e.target.value)}
-                  className="w-full p-2 rounded-md border border-border/50 bg-background/50 focus:border-primary/50 focus:ring-primary/20"
-                >
-                  <option value="">Select a transaction</option>
-                  {/* This will be populated from API in the actual implementation */}
-                  <option value="credit-1">John - $500.00 (Apr 1, 2025) - $300.00 remaining</option>
-                  <option value="credit-2">Sarah - $50.00 (Mar 28, 2025) - $50.00 remaining</option>
-                </select>
+                  onChange={setSelectedCreditId}
+                  creditType={creditType}
+                  onBalanceChange={(balance) => {
+                    // Optionally auto-set amount to current balance
+                    // setAmount(balance.toString());
+                  }}
+                />
                 <p className="text-xs text-muted-foreground mt-1">
                   Select the original credit transaction that this payment is for.
                 </p>

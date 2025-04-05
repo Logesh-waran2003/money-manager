@@ -78,7 +78,7 @@ model Transaction {
   amount            Float
   date              DateTime
   type              String           // income, expense, transfer, credit
-  creditType        String?          // borrowed, payment (only for credit transactions)
+  creditType        String?          // borrowed, lent (only for credit transactions)
   toAccountId       String?
   counterparty      String?
   appUsed           String?
@@ -92,6 +92,8 @@ model Transaction {
   
   // For credit transactions
   creditId          String?
+  isRepayment       Boolean          @default(false)
+  isFullSettlement  Boolean          @default(false)
   
   user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   account           Account          @relation("FromAccount", fields: [accountId], references: [id], onDelete: Cascade)
@@ -133,6 +135,22 @@ model RecurringPayment {
   @@index([nextDueDate])
 }
 
+model CreditRepayment {
+  id            String    @id @default(cuid())
+  creditId      String
+  transactionId String
+  amount        Float
+  date          DateTime
+  isFullSettlement Boolean @default(false)
+  
+  credit        Credit    @relation(fields: [creditId], references: [id], onDelete: Cascade)
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  @@index([creditId])
+}
+
 model Credit {
   id            String        @id @default(cuid())
   userId        String
@@ -142,10 +160,13 @@ model Credit {
   counterparty  String
   dueDate       DateTime?
   isPaid        Boolean       @default(false)
+  isFullySettled Boolean      @default(false)
+  currentBalance Float        // Remaining balance to be paid
   notes         String?
   
   user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions  Transaction[]
+  repayments    CreditRepayment[]
   
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt

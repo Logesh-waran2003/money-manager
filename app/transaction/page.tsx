@@ -10,7 +10,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
+import { useCreditStore } from "@/lib/stores/credit-store";
 import { CalendarIcon, ArrowLeft } from "lucide-react";
 import AccountSelector from "@/components/account-selector";
 import CategorySelector from "@/components/category-selector";
@@ -181,13 +184,27 @@ export default function TransactionForm() {
     try {
       setIsLoading(true);
       
-      // Use the store's addTransaction method which handles both UI update and API call
-      await addTransaction({
-        id: `temp-${Date.now()}`,
-        ...transactionData,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
+      // Handle credit repayments differently
+      if (isCredit && isRepayment && selectedCreditId) {
+        // Use the credit store to add a repayment
+        await useCreditStore.getState().addRepayment({
+          creditId: selectedCreditId,
+          accountId: selectedAccount,
+          amount: parseFloat(amount),
+          date: date?.toISOString() || new Date().toISOString(),
+          description,
+          isFullSettlement,
+          categoryId: category || undefined
+        });
+      } else {
+        // Use the transaction store for regular transactions
+        await addTransaction({
+          id: `temp-${Date.now()}`,
+          ...transactionData,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+      }
 
       // Prepare appropriate message based on transaction type
       let message = "";
