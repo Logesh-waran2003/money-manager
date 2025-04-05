@@ -64,6 +64,11 @@ export default function TransactionForm() {
   const [creditType, setCreditType] = useState("lent");
   const [creditDueDate, setCreditDueDate] = useState<Date | undefined>(new Date());
   const [destinationAccount, setDestinationAccount] = useState("");
+  
+  // Credit repayment fields
+  const [isRepayment, setIsRepayment] = useState(false);
+  const [selectedCreditId, setSelectedCreditId] = useState("");
+  const [isFullSettlement, setIsFullSettlement] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,6 +105,15 @@ export default function TransactionForm() {
       toast({
         title: "Missing Information",
         description: "Please select both source and destination accounts",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    if (isCredit && isRepayment && !selectedCreditId) {
+      toast({
+        title: "Missing Information",
+        description: "Please select an existing credit transaction",
         variant: "destructive"
       });
       return;
@@ -156,6 +170,10 @@ export default function TransactionForm() {
       recurring: isRecurring,
       recurringFrequency: isRecurring ? recurringFrequency : undefined,
       recurringName: isRecurring ? recurringName : undefined,
+      // Add repayment fields if applicable
+      creditId: isCredit && isRepayment ? selectedCreditId : undefined,
+      isRepayment: isCredit ? isRepayment : undefined,
+      isFullSettlement: isCredit && isRepayment ? isFullSettlement : undefined,
     };
 
     try {
@@ -179,6 +197,13 @@ export default function TransactionForm() {
         message = `${creditType === "lent" ? "Lent" : "Borrowed"} $${amount} ${
           creditType === "lent" ? "to" : "from"
         } ${counterparty}`;
+        
+        if (isRepayment) {
+          message = `Recorded repayment of $${amount} for credit with ${counterparty}`;
+          if (isFullSettlement) {
+            message += " (fully settled)";
+          }
+        }
       } else if (transactionType === "recurring") {
         message = `Added recurring payment "${recurringName}" of $${amount} (${recurringFrequency})`;
       } else if (transactionType === "transfer") {
@@ -255,6 +280,10 @@ export default function TransactionForm() {
             setIsRecurring={setIsRecurring}
             isTransfer={isTransfer}
             setIsTransfer={setIsTransfer}
+            isRepayment={isRepayment}
+            setIsRepayment={setIsRepayment}
+            selectedCreditId={selectedCreditId}
+            setSelectedCreditId={setSelectedCreditId}
           />
 
           {/* Transaction amount and date - common for all transaction types */}
@@ -357,6 +386,22 @@ export default function TransactionForm() {
                   />
                 </PopoverContent>
               </Popover>
+            </div>
+          )}
+          
+          {/* Full Settlement Checkbox */}
+          {isCredit && isRepayment && selectedCreditId && (
+            <div className="flex items-center space-x-2 mt-2">
+              <Checkbox 
+                id="settlement" 
+                checked={isFullSettlement}
+                onCheckedChange={(checked) => {
+                  setIsFullSettlement(checked === true);
+                }}
+              />
+              <Label htmlFor="settlement" className="cursor-pointer">
+                Mark as fully settled
+              </Label>
             </div>
           )}
 

@@ -38,6 +38,10 @@ interface TransactionFormFieldsProps {
   setIsRecurring: (value: boolean) => void;
   isTransfer?: boolean;
   setIsTransfer?: (value: boolean) => void;
+  isRepayment?: boolean;
+  setIsRepayment?: (value: boolean) => void;
+  selectedCreditId?: string;
+  setSelectedCreditId?: (value: string) => void;
 }
 
 const TransactionFormFields: React.FC<TransactionFormFieldsProps> = ({
@@ -58,7 +62,11 @@ const TransactionFormFields: React.FC<TransactionFormFieldsProps> = ({
   isRecurring,
   setIsRecurring,
   isTransfer = false,
-  setIsTransfer = () => {}
+  setIsTransfer = () => {},
+  isRepayment = false,
+  setIsRepayment = () => {},
+  selectedCreditId = "",
+  setSelectedCreditId = () => {}
 }) => {
   // Handle transaction type selection based on toggles
   const handleCreditToggle = (checked: boolean) => {
@@ -176,6 +184,41 @@ const TransactionFormFields: React.FC<TransactionFormFieldsProps> = ({
                 ? "Select this if you lent money to someone and they need to pay you back." 
                 : "Select this if you borrowed money from someone and you need to pay them back."}
             </p>
+            
+            <div className="flex items-center space-x-2 mt-3">
+              <Switch 
+                id="repayment-toggle" 
+                checked={isRepayment} 
+                onCheckedChange={(checked) => {
+                  setIsRepayment(checked);
+                  if (!checked) {
+                    setSelectedCreditId("");
+                  }
+                }}
+              />
+              <Label htmlFor="repayment-toggle" className="cursor-pointer">
+                This is a repayment for an existing credit
+              </Label>
+            </div>
+            
+            {isRepayment && (
+              <div className="mt-3 space-y-2 p-3 border border-border/50 rounded-md bg-background/50">
+                <label className="text-sm font-medium">Select Existing Credit</label>
+                <select
+                  value={selectedCreditId}
+                  onChange={(e) => setSelectedCreditId(e.target.value)}
+                  className="w-full p-2 rounded-md border border-border/50 bg-background/50 focus:border-primary/50 focus:ring-primary/20"
+                >
+                  <option value="">Select a transaction</option>
+                  {/* This will be populated from API in the actual implementation */}
+                  <option value="credit-1">John - $500.00 (Apr 1, 2025) - $300.00 remaining</option>
+                  <option value="credit-2">Sarah - $50.00 (Mar 28, 2025) - $50.00 remaining</option>
+                </select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Select the original credit transaction that this payment is for.
+                </p>
+              </div>
+            )}
           </div>
         )}
 
