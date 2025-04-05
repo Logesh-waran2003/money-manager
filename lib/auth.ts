@@ -28,7 +28,7 @@ export async function getAuthUser(request: NextRequest) {
   try {
     // DEVELOPMENT BYPASS: Return a user with an ID that exists in the database
     return {
-      id: "cm92n2yn10000u1yai7zk6ebr", // Using the existing user ID from the database
+      id: "cm94hu4uz0000c8o6y6nkztm9", // Using the existing user ID from the database
       name: "Test User",
       email: "test@example.com",
       createdAt: new Date(),
@@ -86,7 +86,7 @@ export async function getCurrentUser() {
   try {
     // DEVELOPMENT BYPASS: Return a user with an ID that exists in the database
     return {
-      id: "cm92n2yn10000u1yai7zk6ebr", // Using the existing user ID from the database
+      id: "cm94hu4uz0000c8o6y6nkztm9", // Using the existing user ID from the database
       name: "Test User",
       email: "test@example.com",
       createdAt: new Date(),
@@ -138,7 +138,7 @@ export async function authMiddleware(
   try {
     // DEVELOPMENT BYPASS: Always provide a user context with an ID that exists in the database
     const mockUser = {
-      id: "cm92n2yn10000u1yai7zk6ebr", // Using the existing user ID from the database
+      id: "cm94hu4uz0000c8o6y6nkztm9", // Using the existing user ID from the database
       name: "Test User",
       email: "test@example.com",
     };
