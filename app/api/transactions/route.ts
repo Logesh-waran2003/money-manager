@@ -51,6 +51,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Account not found' }, { status: 404 });
     }
 
+    // Handle credit transactions with dueDate
+    if (data.type === 'credit' && data.dueDate) {
+      // Create a Credit record first
+      const credit = await prisma.credit.create({
+        data: {
+          userId: user.id,
+          name: data.description || `${data.creditType === 'lent' ? 'Lent to' : 'Borrowed from'} ${data.counterparty}`,
+          amount: data.amount,
+          type: data.creditType,
+          counterparty: data.counterparty,
+          dueDate: new Date(data.dueDate),
+          notes: data.notes,
+        }
+      });
+      
+      // Add the creditId to the transaction data
+      data.creditId = credit.id;
+      
+      // Remove dueDate from transaction data as it's not in the schema
+      delete data.dueDate;
+    }
+
     // Create the transaction
     const transaction = await prisma.transaction.create({
       data: {

@@ -60,11 +60,51 @@ export default function CreditsPage() {
   );
 
   const markAsPaid = async (id: string) => {
-    // This would be implemented to update the transaction status
-    toast({
-      title: "Not Implemented",
-      description: "Marking as paid will be implemented in the next phase",
-    });
+    try {
+      setIsLoading(true);
+      
+      // Find the transaction to get its creditId
+      const transaction = transactions.find(t => t.id === id);
+      
+      if (!transaction || !transaction.creditId) {
+        toast({
+          title: "Error",
+          description: "Could not find credit information for this transaction",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Call the API to mark the credit as paid
+      const response = await fetch('/api/credits', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id: transaction.creditId }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to mark as paid');
+      }
+      
+      // Refresh the transactions list
+      await fetchTransactions();
+      
+      toast({
+        title: "Success",
+        description: "Transaction marked as paid",
+      });
+    } catch (error) {
+      console.error('Error marking as paid:', error);
+      toast({
+        title: "Error",
+        description: "Failed to mark transaction as paid",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Home, PieChart, CreditCard, Settings, LogOut, Menu, X, ArrowLeftRight } from "lucide-react";
+import { Home, PieChart, CreditCard, Settings, LogOut, Menu, X, ArrowLeftRight, ArrowRight } from "lucide-react";
 import { useState } from "react";
 
 export function Navbar() {
@@ -92,6 +92,34 @@ export function Navbar() {
             >
               <CreditCard className="h-4 w-4 mr-2" />
               Credits
+            </Link>
+          )}
+          
+          {isAuthenticated && (
+            <Link
+              href="/transaction-mock"
+              className={`flex items-center text-sm font-medium transition-colors hover:text-primary ${
+                pathname === "/transaction-mock"
+                  ? "text-primary"
+                  : "text-muted-foreground"
+              }`}
+            >
+              <ArrowRight className="h-4 w-4 mr-2" />
+              Transaction Mock
+            </Link>
+          )}
+          
+          {isAuthenticated && (
+            <Link
+              href="/credit-repayment"
+              className={`flex items-center text-sm font-medium transition-colors hover:text-primary ${
+                pathname === "/credit-repayment"
+                  ? "text-primary"
+                  : "text-muted-foreground"
+              }`}
+            >
+              <ArrowRight className="h-4 w-4 mr-2" />
+              Credit Repayment
             </Link>
           )}
         </nav>
