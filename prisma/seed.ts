@@ -8,444 +8,257 @@ async function main() {
 
   // Create a test user
   const hashedPassword = await hash('password123', 10);
-  
-  const user = await prisma.user.upsert({
-    where: { email: 'test@example.com' },
-    update: {},
-    create: {
-      email: 'test@example.com',
+  const user = await prisma.user.create({
+    data: {
       name: 'Test User',
+      email: 'test@example.com',
       password: hashedPassword,
     },
   });
-  
+
   console.log(`Created user: ${user.name} (${user.email})`);
 
-  // Create account types
-  const accountTypes = [
-    { name: 'Checking Account', type: 'bank', balance: 2500.00, isDefault: true },
-    { name: 'Savings Account', type: 'bank', balance: 10000.00 },
-    { name: 'Cash Wallet', type: 'cash', balance: 150.00 },
-    { name: 'Credit Card', type: 'credit', balance: -450.00, creditLimit: 5000.00, dueDate: new Date(2025, 4, 15) },
-    { name: 'Investment Account', type: 'investment', balance: 5000.00 },
-  ];
-
-  // Create accounts for the user
-  const accounts = [];
-  for (const accountData of accountTypes) {
-    const account = await prisma.account.upsert({
-      where: { 
-        id: `${accountData.name.toLowerCase().replace(/\s/g, '-')}-${user.id}` 
-      },
-      update: {},
-      create: {
-        id: `${accountData.name.toLowerCase().replace(/\s/g, '-')}-${user.id}`,
-        userId: user.id,
-        name: accountData.name,
-        type: accountData.type,
-        balance: accountData.balance,
-        currency: 'USD',
-        isDefault: accountData.isDefault || false,
-        creditLimit: accountData.creditLimit,
-        dueDate: accountData.dueDate,
-        isActive: true,
-      },
-    });
-    accounts.push(account);
-    console.log(`Created account: ${account.name} with balance $${account.balance}`);
-  }
-
-  // Create expense categories
+  // Create categories
   const expenseCategories = [
-    'Food & Dining',
-    'Groceries',
-    'Shopping',
-    'Entertainment',
-    'Transportation',
-    'Housing',
-    'Utilities',
-    'Health & Medical',
-    'Personal Care',
-    'Education',
-    'Travel',
-    'Gifts & Donations',
-    'Bills & Subscriptions',
-    'Other'
+    { name: 'Food & Dining', color: '#FF5733', icon: 'utensils', isIncome: false, isDefault: false },
+    { name: 'Transportation', color: '#33A8FF', icon: 'car', isIncome: false, isDefault: false },
+    { name: 'Housing', color: '#33FF57', icon: 'home', isIncome: false, isDefault: false },
+    { name: 'Entertainment', color: '#D433FF', icon: 'film', isIncome: false, isDefault: false },
+    { name: 'Shopping', color: '#FF33A8', icon: 'shopping-bag', isIncome: false, isDefault: false },
+    { name: 'Utilities', color: '#A8FF33', icon: 'bolt', isIncome: false, isDefault: false },
+    { name: 'Healthcare', color: '#33FFA8', icon: 'heartbeat', isIncome: false, isDefault: false },
+    { name: 'Personal', color: '#3357FF', icon: 'user', isIncome: false, isDefault: false },
   ];
 
-  for (const categoryName of expenseCategories) {
-    await prisma.category.upsert({
-      where: { 
-        userId_name: {
-          name: categoryName,
-          userId: user.id
-        }
-      },
-      update: {},
-      create: {
-        name: categoryName,
-        isIncome: false,
-        userId: user.id,
-      },
-    });
-  }
-  console.log(`Created ${expenseCategories.length} expense categories`);
-
-  // Create income categories
   const incomeCategories = [
-    'Salary',
-    'Freelance',
-    'Investments',
-    'Gifts',
-    'Refunds',
-    'Other Income'
+    { name: 'Salary', color: '#33FF57', icon: 'money-bill', isIncome: true, isDefault: true },
+    { name: 'Freelance', color: '#33A8FF', icon: 'laptop', isIncome: true, isDefault: false },
+    { name: 'Investments', color: '#FF5733', icon: 'chart-line', isIncome: true, isDefault: false },
+    { name: 'Gifts', color: '#D433FF', icon: 'gift', isIncome: true, isDefault: false },
   ];
 
-  for (const categoryName of incomeCategories) {
-    await prisma.category.upsert({
-      where: { 
-        userId_name: {
-          name: categoryName,
-          userId: user.id
-        }
-      },
-      update: {},
-      create: {
-        name: categoryName,
-        isIncome: true,
+  const categories = [...expenseCategories, ...incomeCategories];
+
+  for (const category of categories) {
+    await prisma.category.create({
+      data: {
         userId: user.id,
+        name: category.name,
+        color: category.color,
+        icon: category.icon,
+        isIncome: category.isIncome,
+        isDefault: category.isDefault,
       },
     });
   }
-  console.log(`Created ${incomeCategories.length} income categories`);
 
-  // Get all created categories for reference
-  const categories = await prisma.category.findMany({
-    where: { userId: user.id }
+  console.log(`Created ${categories.length} categories`);
+
+  // Create accounts
+  const accounts = [
+    {
+      name: 'Main Checking',
+      type: 'bank',
+      balance: 5000,
+      isDefault: true,
+    },
+    {
+      name: 'Savings',
+      type: 'bank',
+      balance: 10000,
+      isDefault: false,
+    },
+    {
+      name: 'Cash',
+      type: 'cash',
+      balance: 200,
+      isDefault: false,
+    },
+    {
+      name: 'Credit Card',
+      type: 'credit',
+      balance: -500,
+      creditLimit: 5000,
+      dueDate: new Date(2025, 4, 15), // May 15, 2025
+      isDefault: false,
+    },
+  ];
+
+  for (const account of accounts) {
+    await prisma.account.create({
+      data: {
+        userId: user.id,
+        ...account,
+      },
+    });
+  }
+
+  console.log(`Created ${accounts.length} accounts`);
+
+  // Get created accounts and categories for reference
+  const checkingAccount = await prisma.account.findFirst({
+    where: { userId: user.id, name: 'Main Checking' },
+  });
+  
+  const savingsAccount = await prisma.account.findFirst({
+    where: { userId: user.id, name: 'Savings' },
+  });
+  
+  const creditAccount = await prisma.account.findFirst({
+    where: { userId: user.id, name: 'Credit Card' },
+  });
+  
+  const foodCategory = await prisma.category.findFirst({
+    where: { userId: user.id, name: 'Food & Dining' },
+  });
+  
+  const salaryCategory = await prisma.category.findFirst({
+    where: { userId: user.id, name: 'Salary' },
+  });
+  
+  const housingCategory = await prisma.category.findFirst({
+    where: { userId: user.id, name: 'Housing' },
   });
 
-  // Create sample transactions
-  const checkingAccount = accounts.find(a => a.name === 'Checking Account');
-  const savingsAccount = accounts.find(a => a.name === 'Savings Account');
-  const creditCard = accounts.find(a => a.name === 'Credit Card');
-  const cashWallet = accounts.find(a => a.name === 'Cash Wallet');
-
-  if (!checkingAccount || !savingsAccount || !creditCard || !cashWallet) {
-    console.error('Could not find all required accounts');
-    return;
-  }
-
-  // Helper function to get a random category by income status
-  const getRandomCategory = (isIncome: boolean) => {
-    const filteredCategories = categories.filter(c => c.isIncome === isIncome);
-    return filteredCategories[Math.floor(Math.random() * filteredCategories.length)];
-  };
-
-  // Helper function to get a random date in the last 30 days
-  const getRandomDate = (daysBack = 30) => {
-    const date = new Date();
-    date.setDate(date.getDate() - Math.floor(Math.random() * daysBack));
-    return date;
-  };
-
-  // Create expense transactions
-  const expenses = [
-    { 
-      description: 'Grocery shopping', 
-      amount: 85.47, 
-      accountId: checkingAccount.id, 
-      categoryId: categories.find(c => c.name === 'Groceries')?.id,
-      date: getRandomDate(5),
-      counterparty: 'Whole Foods'
-    },
-    { 
-      description: 'Restaurant dinner', 
-      amount: 64.20, 
-      accountId: creditCard.id, 
-      categoryId: categories.find(c => c.name === 'Food & Dining')?.id,
-      date: getRandomDate(3),
-      counterparty: 'Olive Garden'
-    },
-    { 
-      description: 'Movie tickets', 
-      amount: 32.50, 
-      accountId: creditCard.id, 
-      categoryId: categories.find(c => c.name === 'Entertainment')?.id,
-      date: getRandomDate(7),
-      counterparty: 'AMC Theaters'
-    },
-    { 
-      description: 'Gas station', 
-      amount: 45.00, 
-      accountId: checkingAccount.id, 
-      categoryId: categories.find(c => c.name === 'Transportation')?.id,
-      date: getRandomDate(2),
-      counterparty: 'Shell'
-    },
-    { 
-      description: 'Phone bill', 
-      amount: 85.99, 
-      accountId: checkingAccount.id, 
-      categoryId: categories.find(c => c.name === 'Bills & Subscriptions')?.id,
-      date: getRandomDate(10),
-      counterparty: 'Verizon'
-    },
-    { 
-      description: 'Coffee shop', 
-      amount: 5.75, 
-      accountId: cashWallet.id, 
-      categoryId: categories.find(c => c.name === 'Food & Dining')?.id,
-      date: getRandomDate(1),
-      counterparty: 'Starbucks'
-    },
-    { 
-      description: 'Gym membership', 
-      amount: 50.00, 
-      accountId: creditCard.id, 
-      categoryId: categories.find(c => c.name === 'Personal Care')?.id,
-      date: getRandomDate(15),
-      counterparty: 'LA Fitness'
-    },
-    { 
-      description: 'Online shopping', 
-      amount: 124.35, 
-      accountId: creditCard.id, 
-      categoryId: categories.find(c => c.name === 'Shopping')?.id,
-      date: getRandomDate(8),
-      counterparty: 'Amazon'
-    },
-    { 
-      description: 'Electricity bill', 
-      amount: 110.25, 
-      accountId: checkingAccount.id, 
-      categoryId: categories.find(c => c.name === 'Utilities')?.id,
-      date: getRandomDate(12),
-      counterparty: 'Power Company'
-    },
-    { 
-      description: 'Haircut', 
-      amount: 35.00, 
-      accountId: cashWallet.id, 
-      categoryId: categories.find(c => c.name === 'Personal Care')?.id,
-      date: getRandomDate(6),
-      counterparty: 'Great Clips'
-    },
-  ];
-
-  for (const expense of expenses) {
+  // Create transactions
+  if (checkingAccount && savingsAccount && creditAccount && foodCategory && salaryCategory && housingCategory) {
+    // Regular expense
     await prisma.transaction.create({
       data: {
         userId: user.id,
-        amount: expense.amount,
-        description: expense.description,
-        date: expense.date,
+        accountId: checkingAccount.id,
+        amount: 45.75,
+        description: 'Grocery shopping',
+        date: new Date(2025, 3, 1), // April 1, 2025
         type: 'expense',
-        accountId: expense.accountId,
-        categoryId: expense.categoryId,
-        counterparty: expense.counterparty,
-      }
+        categoryId: foodCategory.id,
+        counterparty: 'Whole Foods',
+      },
     });
-  }
-  console.log(`Created ${expenses.length} expense transactions`);
 
-  // Create income transactions
-  const incomes = [
-    { 
-      description: 'Salary deposit', 
-      amount: 3200.00, 
-      accountId: checkingAccount.id, 
-      categoryId: categories.find(c => c.name === 'Salary')?.id,
-      date: getRandomDate(15),
-      counterparty: 'Employer Inc.'
-    },
-    { 
-      description: 'Freelance payment', 
-      amount: 450.00, 
-      accountId: checkingAccount.id, 
-      categoryId: categories.find(c => c.name === 'Freelance')?.id,
-      date: getRandomDate(7),
-      counterparty: 'Client XYZ'
-    },
-    { 
-      description: 'Dividend payment', 
-      amount: 75.25, 
-      accountId: savingsAccount.id, 
-      categoryId: categories.find(c => c.name === 'Investments')?.id,
-      date: getRandomDate(10),
-      counterparty: 'Vanguard'
-    },
-    { 
-      description: 'Cash gift', 
-      amount: 100.00, 
-      accountId: cashWallet.id, 
-      categoryId: categories.find(c => c.name === 'Gifts')?.id,
-      date: getRandomDate(5),
-      counterparty: 'Grandma'
-    },
-    { 
-      description: 'Tax refund', 
-      amount: 850.00, 
-      accountId: checkingAccount.id, 
-      categoryId: categories.find(c => c.name === 'Other Income')?.id,
-      date: getRandomDate(20),
-      counterparty: 'IRS'
-    },
-  ];
-
-  for (const income of incomes) {
+    // Regular income
     await prisma.transaction.create({
       data: {
         userId: user.id,
-        amount: income.amount,
-        description: income.description,
-        date: income.date,
+        accountId: checkingAccount.id,
+        amount: 3500,
+        description: 'Monthly salary',
+        date: new Date(2025, 3, 1), // April 1, 2025
         type: 'income',
-        accountId: income.accountId,
-        categoryId: income.categoryId,
-        counterparty: income.counterparty,
-      }
+        categoryId: salaryCategory.id,
+        counterparty: 'Acme Corp',
+      },
     });
-  }
-  console.log(`Created ${incomes.length} income transactions`);
 
-  // Create transfer transactions
-  const transfers = [
-    {
-      description: 'Transfer to savings',
-      amount: 500.00,
-      fromAccountId: checkingAccount.id,
-      toAccountId: savingsAccount.id,
-      date: getRandomDate(8)
-    },
-    {
-      description: 'ATM withdrawal',
-      amount: 100.00,
-      fromAccountId: checkingAccount.id,
-      toAccountId: cashWallet.id,
-      date: getRandomDate(3)
-    },
-    {
-      description: 'Credit card payment',
-      amount: 200.00,
-      fromAccountId: checkingAccount.id,
-      toAccountId: creditCard.id,
-      date: getRandomDate(5)
-    }
-  ];
-
-  for (const transfer of transfers) {
+    // Transfer between accounts
     await prisma.transaction.create({
       data: {
         userId: user.id,
-        amount: transfer.amount,
-        description: transfer.description,
-        date: transfer.date,
+        accountId: checkingAccount.id,
+        toAccountId: savingsAccount.id,
+        amount: 500,
+        description: 'Monthly savings',
+        date: new Date(2025, 3, 2), // April 2, 2025
         type: 'transfer',
-        accountId: transfer.fromAccountId,
-        toAccountId: transfer.toAccountId,
-      }
+      },
     });
-  }
-  console.log(`Created ${transfers.length} transfer transactions`);
 
-  // Create credit transactions (borrowed/lent)
-  const credits = [
-    {
-      description: 'Lent money for lunch',
-      amount: 25.00,
-      accountId: cashWallet.id,
-      date: getRandomDate(4),
-      counterparty: 'John',
-      type: 'credit',
-      creditType: 'lent',
-    },
-    {
-      description: 'Borrowed for concert tickets',
-      amount: 75.00,
-      accountId: cashWallet.id,
-      date: getRandomDate(10),
-      counterparty: 'Sarah',
-      type: 'credit',
-      creditType: 'borrowed',
-    },
-    {
-      description: 'Lent for emergency car repair',
-      amount: 200.00,
-      accountId: checkingAccount.id,
-      date: getRandomDate(15),
-      counterparty: 'Mike',
-      type: 'credit',
-      creditType: 'lent',
-    }
-  ];
-
-  for (const credit of credits) {
+    // Credit card expense
     await prisma.transaction.create({
       data: {
         userId: user.id,
-        amount: credit.amount,
-        description: credit.description,
-        date: credit.date,
-        type: credit.type,
-        accountId: credit.accountId,
-        counterparty: credit.counterparty,
-        creditType: credit.creditType,
-      }
-    });
-  }
-  console.log(`Created ${credits.length} credit transactions`);
-
-  // Create recurring transactions
-  const recurring = [
-    {
-      description: 'Netflix subscription',
-      amount: 14.99,
-      accountId: creditCard.id,
-      categoryId: categories.find(c => c.name === 'Bills & Subscriptions')?.id,
-      date: getRandomDate(7),
-      counterparty: 'Netflix',
-      recurring: true,
-      recurringFrequency: 'monthly'
-    },
-    {
-      description: 'Rent payment',
-      amount: 1200.00,
-      accountId: checkingAccount.id,
-      categoryId: categories.find(c => c.name === 'Housing')?.id,
-      date: getRandomDate(15),
-      counterparty: 'Landlord',
-      recurring: true,
-      recurringFrequency: 'monthly'
-    },
-    {
-      description: 'Spotify subscription',
-      amount: 9.99,
-      accountId: creditCard.id,
-      categoryId: categories.find(c => c.name === 'Bills & Subscriptions')?.id,
-      date: getRandomDate(5),
-      counterparty: 'Spotify',
-      recurring: true,
-      recurringFrequency: 'monthly'
-    }
-  ];
-
-  for (const rec of recurring) {
-    await prisma.transaction.create({
-      data: {
-        userId: user.id,
-        amount: rec.amount,
-        description: rec.description,
-        date: rec.date,
+        accountId: creditAccount.id,
+        amount: 120.50,
+        description: 'Online shopping',
+        date: new Date(2025, 3, 3), // April 3, 2025
         type: 'expense',
-        accountId: rec.accountId,
-        categoryId: rec.categoryId,
-        counterparty: rec.counterparty,
-        recurring: rec.recurring,
-        recurringFrequency: rec.recurringFrequency
-      }
+        counterparty: 'Amazon',
+        categoryId: foodCategory.id,
+      },
     });
+
+    // Recurring payment
+    await prisma.transaction.create({
+      data: {
+        userId: user.id,
+        accountId: checkingAccount.id,
+        amount: 1200,
+        description: 'Monthly rent',
+        date: new Date(2025, 3, 5), // April 5, 2025
+        type: 'expense',
+        categoryId: housingCategory.id,
+        counterparty: 'Landlord',
+        recurring: true,
+        recurringFrequency: 'monthly',
+      },
+    });
+
+    // Credit transactions (lent)
+    const lentTransaction = await prisma.transaction.create({
+      data: {
+        userId: user.id,
+        accountId: checkingAccount.id,
+        amount: 200,
+        description: 'Lent for dinner',
+        date: new Date(2025, 3, 10), // April 10, 2025
+        type: 'credit',
+        creditType: 'lent',
+        counterparty: 'John',
+        isRepayment: false,
+      },
+    });
+
+    // Partial repayment for the lent money
+    await prisma.transaction.create({
+      data: {
+        userId: user.id,
+        accountId: checkingAccount.id,
+        amount: 50,
+        description: 'Partial repayment for dinner',
+        date: new Date(2025, 3, 15), // April 15, 2025
+        type: 'credit',
+        creditType: 'lent',
+        counterparty: 'John',
+        isRepayment: true,
+        creditId: lentTransaction.id,
+        isFullSettlement: false,
+      },
+    });
+
+    // Credit transactions (borrowed)
+    const borrowedTransaction = await prisma.transaction.create({
+      data: {
+        userId: user.id,
+        accountId: checkingAccount.id,
+        amount: 300,
+        description: 'Borrowed for car repair',
+        date: new Date(2025, 3, 12), // April 12, 2025
+        type: 'credit',
+        creditType: 'borrowed',
+        counterparty: 'Sarah',
+        isRepayment: false,
+      },
+    });
+
+    // Partial repayment for the borrowed money
+    await prisma.transaction.create({
+      data: {
+        userId: user.id,
+        accountId: checkingAccount.id,
+        amount: 100,
+        description: 'First repayment for car repair',
+        date: new Date(2025, 3, 20), // April 20, 2025
+        type: 'credit',
+        creditType: 'borrowed',
+        counterparty: 'Sarah',
+        isRepayment: true,
+        creditId: borrowedTransaction.id,
+        isFullSettlement: false,
+      },
+    });
+
+    console.log('Created 8 transactions');
   }
-  console.log(`Created ${recurring.length} recurring transactions`);
 
   console.log('Database seeding completed successfully!');
 }
