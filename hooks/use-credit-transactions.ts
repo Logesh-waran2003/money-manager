@@ -19,8 +19,33 @@ export function useCreditTransactions(type?: CreditType) {
     }
   }, [credits, type]);
   
+  // Calculate days until due for each credit
+  const creditsWithDueInfo = filteredCredits.map(credit => {
+    let daysUntilDue = null;
+    let isOverdue = false;
+    
+    if (credit.dueDate) {
+      const dueDate = new Date(credit.dueDate);
+      const today = new Date();
+      
+      // Reset time part for accurate day calculation
+      today.setHours(0, 0, 0, 0);
+      dueDate.setHours(0, 0, 0, 0);
+      
+      const diffTime = dueDate.getTime() - today.getTime();
+      daysUntilDue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      isOverdue = daysUntilDue < 0;
+    }
+    
+    return {
+      ...credit,
+      daysUntilDue,
+      isOverdue
+    };
+  });
+  
   return {
-    credits: filteredCredits,
+    credits: creditsWithDueInfo,
     isLoading,
     error,
     refetch: () => fetchCredits(type)

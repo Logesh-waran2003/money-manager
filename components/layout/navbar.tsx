@@ -13,10 +13,21 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Home, PieChart, CreditCard, Settings, LogOut, Menu, X, ArrowLeftRight, ArrowRight } from "lucide-react";
+import {
+  Home,
+  PieChart,
+  CreditCard,
+  Settings,
+  LogOut,
+  Menu,
+  X,
+  ArrowLeftRight,
+  ArrowRight,
+} from "lucide-react";
 import { useState } from "react";
+import { ThemeToggle } from "@/components/theme-toggle";
 
-export function Navbar() {
+const Navbar = () => {
   const pathname = usePathname();
   const { user, isAuthenticated, logout } = useAuthStore();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -27,10 +38,26 @@ export function Navbar() {
   }
 
   const navItems = [
-    { href: "/dashboard", label: "Dashboard", icon: <Home className="h-4 w-4 mr-2" /> },
-    { href: "/transactions", label: "Transactions", icon: <PieChart className="h-4 w-4 mr-2" /> },
-    { href: "/accounts", label: "Accounts", icon: <CreditCard className="h-4 w-4 mr-2" /> },
-    { href: "/transfers", label: "Transfers", icon: <ArrowLeftRight className="h-4 w-4 mr-2" /> },
+    {
+      href: "/dashboard",
+      label: "Dashboard",
+      icon: <Home className="h-4 w-4 mr-2" />,
+    },
+    {
+      href: "/transactions",
+      label: "Transactions",
+      icon: <PieChart className="h-4 w-4 mr-2" />,
+    },
+    {
+      href: "/accounts",
+      label: "Accounts",
+      icon: <CreditCard className="h-4 w-4 mr-2" />,
+    },
+    {
+      href: "/transfers",
+      label: "Transfers",
+      icon: <ArrowLeftRight className="h-4 w-4 mr-2" />,
+    },
   ];
 
   const userInitials = user?.name
@@ -80,7 +107,7 @@ export function Navbar() {
                 {item.label}
               </Link>
             ))}
-            
+
           {isAuthenticated && (
             <Link
               href="/credits"
@@ -94,75 +121,55 @@ export function Navbar() {
               Credits
             </Link>
           )}
-          
-          {isAuthenticated && (
-            <Link
-              href="/transaction-mock"
-              className={`flex items-center text-sm font-medium transition-colors hover:text-primary ${
-                pathname === "/transaction-mock"
-                  ? "text-primary"
-                  : "text-muted-foreground"
-              }`}
-            >
-              <ArrowRight className="h-4 w-4 mr-2" />
-              Transaction Mock
-            </Link>
-          )}
-          
-          {isAuthenticated && (
-            <Link
-              href="/credit-repayment"
-              className={`flex items-center text-sm font-medium transition-colors hover:text-primary ${
-                pathname === "/credit-repayment"
-                  ? "text-primary"
-                  : "text-muted-foreground"
-              }`}
-            >
-              <ArrowRight className="h-4 w-4 mr-2" />
-              Credit Repayment
-            </Link>
-          )}
         </nav>
 
         <div className="ml-auto flex items-center space-x-4">
           {isAuthenticated ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  className="relative h-8 w-8 rounded-full"
-                >
-                  <Avatar className="h-8 w-8">
-                    <AvatarFallback>{userInitials}</AvatarFallback>
-                  </Avatar>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" forceMount>
-                <DropdownMenuLabel className="font-normal">
-                  <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium leading-none">{user?.name}</p>
-                    <p className="text-xs leading-none text-muted-foreground">
-                      {user?.email}
-                    </p>
-                  </div>
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link href="/settings" className="flex items-center">
-                    <Settings className="mr-2 h-4 w-4" />
-                    <span>Settings</span>
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => logout()}>
-                  <LogOut className="mr-2 h-4 w-4" />
-                  <span>Log out</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <>
+              <ThemeToggle />
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    className="relative h-8 w-8 rounded-full"
+                  >
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback>{userInitials}</AvatarFallback>
+                    </Avatar>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" forceMount>
+                  <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col space-y-1">
+                      <p className="text-sm font-medium leading-none">
+                        {user?.name}
+                      </p>
+                      <p className="text-xs leading-none text-muted-foreground">
+                        {user?.email}
+                      </p>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/settings" className="flex items-center">
+                      <Settings className="mr-2 h-4 w-4" />
+                      <span>Settings</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => logout()}>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>Log out</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
           ) : (
-            <Button asChild>
-              <Link href="/login">Login</Link>
-            </Button>
+            <>
+              <ThemeToggle />
+              <Button asChild>
+                <Link href="/login">Login</Link>
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -192,4 +199,6 @@ export function Navbar() {
       )}
     </header>
   );
-}
+};
+
+export { Navbar };

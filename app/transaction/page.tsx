@@ -4,12 +4,14 @@ import React, { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
-import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
@@ -29,24 +31,26 @@ export default function TransactionForm() {
   const { toast } = useToast();
   const { addTransaction } = useTransactionStore();
   const [isLoading, setIsLoading] = useState(false);
-  
+
   // Check URL parameters for transaction type
-  const [searchParams, setSearchParams] = useState<URLSearchParams | null>(null);
-  
+  const [searchParams, setSearchParams] = useState<URLSearchParams | null>(
+    null
+  );
+
   useEffect(() => {
     // Get URL parameters
-    if (typeof window !== 'undefined') {
+    if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       setSearchParams(params);
-      
+
       // Set transfer mode if specified in URL
-      if (params.get('type') === 'transfer') {
+      if (params.get("type") === "transfer") {
         setIsTransfer(true);
-        setTransactionType('transfer');
+        setTransactionType("transfer");
       }
     }
   }, []);
-  
+
   // Core transaction details
   const [selectedAccount, setSelectedAccount] = useState("");
   const [amount, setAmount] = useState("");
@@ -56,20 +60,22 @@ export default function TransactionForm() {
   const [counterparty, setCounterparty] = useState("");
   const [appUsed, setAppUsed] = useState("");
   const [category, setCategory] = useState("");
-  
+
   // Transaction type toggles
   const [isCredit, setIsCredit] = useState(false);
   const [isRecurring, setIsRecurring] = useState(false);
   const [isTransfer, setIsTransfer] = useState(false);
-  
+
   // Transaction type and specific fields
   const [transactionType, setTransactionType] = useState("regular");
   const [recurringName, setRecurringName] = useState("");
   const [recurringFrequency, setRecurringFrequency] = useState("monthly");
   const [creditType, setCreditType] = useState("lent");
-  const [creditDueDate, setCreditDueDate] = useState<Date | undefined>(new Date());
+  const [creditDueDate, setCreditDueDate] = useState<Date | undefined>(
+    new Date()
+  );
   const [destinationAccount, setDestinationAccount] = useState("");
-  
+
   // Credit repayment fields
   const [isRepayment, setIsRepayment] = useState(false);
   const [selectedCreditId, setSelectedCreditId] = useState("");
@@ -77,22 +83,22 @@ export default function TransactionForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Validate form based on transaction type
     if (!selectedAccount) {
       toast({
         title: "Missing Information",
         description: "Please select an account",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
 
-    if (!amount || isNaN(parseFloat(amount))) {
+    if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
       toast({
         title: "Invalid Amount",
-        description: "Please enter a valid amount",
-        variant: "destructive"
+        description: "Please enter a valid amount greater than zero",
+        variant: "destructive",
       });
       return;
     }
@@ -101,56 +107,93 @@ export default function TransactionForm() {
       toast({
         title: "Missing Information",
         description: "Please provide a name for the recurring payment",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
 
-    if (transactionType === "transfer" && (!selectedAccount || !destinationAccount)) {
+    if (
+      transactionType === "transfer" &&
+      (!selectedAccount || !destinationAccount)
+    ) {
       toast({
         title: "Missing Information",
         description: "Please select both source and destination accounts",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
-    
+
     if (isCredit && isRepayment && !selectedCreditId) {
       toast({
         title: "Missing Information",
         description: "Please select an existing credit transaction",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
 
-    if (transactionType === "transfer" && selectedAccount === destinationAccount) {
+    if (
+      transactionType === "transfer" &&
+      selectedAccount === destinationAccount
+    ) {
       toast({
         title: "Invalid Transfer",
         description: "Source and destination accounts cannot be the same",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
 
-    if ((transactionType === "regular" || transactionType === "credit") && !counterparty) {
+    if (
+      (transactionType === "regular" || transactionType === "credit") &&
+      !counterparty
+    ) {
       toast({
         title: "Missing Information",
-        description: "Please enter a " + (transactionType === "credit" ? 
-          (creditType === "lent" ? "recipient" : "lender") : 
-          "counterparty"),
-        variant: "destructive"
+        description:
+          "Please enter a " +
+          (transactionType === "credit"
+            ? creditType === "lent"
+              ? "recipient"
+              : "lender"
+            : "counterparty"),
+        variant: "destructive",
       });
       return;
     }
 
-    if ((transactionType === "income" || transactionType === "expense") && !category) {
+    if (
+      (transactionType === "income" || transactionType === "expense") &&
+      !category
+    ) {
       toast({
         title: "Missing Information",
         description: "Please select a category",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
+    }
+    
+    // Validate repayment amount doesn't exceed balance
+    if (isCredit && isRepayment && selectedCreditId) {
+      try {
+        const isValid = useCreditStore.getState().validateRepaymentAmount(
+          selectedCreditId,
+          parseFloat(amount)
+        );
+        
+        if (!isValid && !isFullSettlement) {
+          toast({
+            title: "Invalid Repayment Amount",
+            description: "Repayment amount exceeds the remaining balance. If this is intended to fully settle the debt, please mark it as a full settlement.",
+            variant: "destructive",
+          });
+          return;
+        }
+      } catch (error) {
+        console.error("Error validating repayment amount:", error);
+      }
     }
 
     // Determine the actual transaction type for the API
@@ -183,7 +226,7 @@ export default function TransactionForm() {
 
     try {
       setIsLoading(true);
-      
+
       // Handle credit repayments differently
       if (isCredit && isRepayment && selectedCreditId) {
         // Use the credit store to add a repayment
@@ -194,13 +237,18 @@ export default function TransactionForm() {
           date: date?.toISOString() || new Date().toISOString(),
           description,
           isFullSettlement,
-          categoryId: category || undefined
+          categoryId: category || undefined,
         });
       } else {
         // Use the transaction store for regular transactions
         await addTransaction({
           id: `temp-${Date.now()}`,
           ...transactionData,
+          type: transactionData.type as
+            | "income"
+            | "expense"
+            | "transfer"
+            | "credit",
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         });
@@ -209,14 +257,16 @@ export default function TransactionForm() {
       // Prepare appropriate message based on transaction type
       let message = "";
       if (transactionType === "regular") {
-        message = `${direction === "received" ? "Received" : "Sent"} $${amount} ${
+        message = `${
+          direction === "received" ? "Received" : "Sent"
+        } $${amount} ${
           direction === "received" ? "from" : "to"
         } ${counterparty}`;
       } else if (transactionType === "credit") {
         message = `${creditType === "lent" ? "Lent" : "Borrowed"} $${amount} ${
           creditType === "lent" ? "to" : "from"
         } ${counterparty}`;
-        
+
         if (isRepayment) {
           message = `Recorded repayment of $${amount} for credit with ${counterparty}`;
           if (isFullSettlement) {
@@ -237,11 +287,12 @@ export default function TransactionForm() {
       // Navigate back to transactions page
       router.push("/transactions");
     } catch (error) {
-      console.error('Error saving transaction:', error);
+      console.error("Error saving transaction:", error);
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to save transaction",
-        variant: "destructive"
+        description:
+          error instanceof Error ? error.message : "Failed to save transaction",
+        variant: "destructive",
       });
     } finally {
       setIsLoading(false);
@@ -256,23 +307,23 @@ export default function TransactionForm() {
         </Button>
         <h1 className="text-2xl font-bold">New Transaction</h1>
       </div>
-      
+
       <Card className="p-6 shadow-md">
         <form onSubmit={handleSubmit} className="space-y-6">
           {!isTransfer ? (
-            <AccountSelector 
+            <AccountSelector
               selectedAccount={selectedAccount}
               onChange={setSelectedAccount}
               label="Account"
             />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <AccountSelector 
+              <AccountSelector
                 selectedAccount={selectedAccount}
                 onChange={setSelectedAccount}
                 label="From Account"
               />
-              <AccountSelector 
+              <AccountSelector
                 selectedAccount={destinationAccount}
                 onChange={setDestinationAccount}
                 label="To Account"
@@ -310,7 +361,9 @@ export default function TransactionForm() {
             <div className="space-y-2">
               <label className="text-sm font-medium">Amount</label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400">$</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400">
+                  $
+                </span>
                 <Input
                   type="number"
                   value={amount}
@@ -321,7 +374,7 @@ export default function TransactionForm() {
                 />
               </div>
             </div>
-            
+
             <div className="space-y-2">
               <label className="text-sm font-medium">Date</label>
               <Popover>
@@ -378,7 +431,7 @@ export default function TransactionForm() {
               />
             </div>
           )}
-          
+
           {isCredit && (
             <div className="space-y-2">
               <label className="text-sm font-medium">Due Date</label>
@@ -407,12 +460,12 @@ export default function TransactionForm() {
               </Popover>
             </div>
           )}
-          
+
           {/* Full Settlement Checkbox */}
           {isCredit && isRepayment && selectedCreditId && (
             <div className="flex items-center space-x-2 mt-2">
-              <Checkbox 
-                id="settlement" 
+              <Checkbox
+                id="settlement"
                 checked={isFullSettlement}
                 onCheckedChange={(checked) => {
                   setIsFullSettlement(checked === true);
@@ -436,7 +489,11 @@ export default function TransactionForm() {
           </div>
 
           <div className="flex justify-end space-x-3 pt-2">
-            <Button type="button" variant="outline" onClick={() => router.back()}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => router.back()}
+            >
               Cancel
             </Button>
             <Button type="submit" disabled={isLoading}>

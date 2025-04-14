@@ -18,6 +18,8 @@ export interface CreditTransaction {
   isSettled: boolean;
   totalRepaid: number;
   repayments: CreditRepayment[];
+  daysUntilDue?: number | null;
+  isOverdue?: boolean;
 }
 
 // Define credit repayment interface
@@ -45,6 +47,7 @@ interface CreditState {
     isFullSettlement: boolean;
     categoryId?: string;
   }) => Promise<void>;
+  validateRepaymentAmount: (creditId: string, amount: number) => boolean;
 }
 
 // Create credit store
@@ -82,6 +85,16 @@ export const useCreditStore = create<CreditState>()(
       addRepayment: async (repaymentData) => {
         set({ isLoading: true, error: null });
         try {
+          // Validate repayment amount
+          const isValid = get().validateRepaymentAmount(
+            repaymentData.creditId, 
+            repaymentData.amount
+          );
+          
+          if (!isValid && !repaymentData.isFullSettlement) {
+            throw new Error('Repayment amount exceeds remaining balance');
+          }
+          
           const response = await fetch('/api/credits/repay', {
             method: 'POST',
             headers: {
@@ -104,13 +117,23 @@ export const useCreditStore = create<CreditState>()(
             ),
             isLoading: false,
           }));
+          
+          return repayment;
         } catch (error) {
           console.error('Error recording repayment:', error);
           set({ 
             error: error instanceof Error ? error.message : 'Failed to record repayment', 
             isLoading: false 
           });
+          throw error;
         }
+      },
+      
+      // Validate that repayment amount doesn't exceed remaining balance
+      validateRepaymentAmount: (creditId: string, amount: number) => {
+        const credit = get().credits.find(c => c.id === creditId);
+        if (!credit) return false;
+        return amount <= credit.currentBalance;
       },
     }),
     { name: 'credit-store' }

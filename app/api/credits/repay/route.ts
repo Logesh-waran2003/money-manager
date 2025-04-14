@@ -1,36 +1,54 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/db";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
-// POST /api/credits/repay - Record a repayment for a credit transaction
-export async function POST(req: NextRequest) {
+// POST /api/credits/repay - Record a repayment for an existing credit
+export async function POST(request: NextRequest) {
   try {
-    const session = await auth();
+    const session = await getServerSession(authOptions);
     
-    if (!session?.user?.id) {
+    if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     
-    const userId = session.user.id;
-    const data = await req.json();
+    const data = await request.json();
     
     // Validate required fields
-    if (!data.creditId || !data.amount || !data.accountId) {
+    if (!data.creditId || !data.accountId || !data.amount) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
       );
     }
     
-    // Get the original credit transaction to verify ownership and details
-    const originalCredit = await db.transaction.findUnique({
+    // Validate amount is positive
+    if (data.amount <= 0) {
+      return NextResponse.json(
+        { error: "Repayment amount must be greater than zero" },
+        { status: 400 }
+      );
+    }
+    
+    // Find the user
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+    });
+    
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+    
+    // Find the original credit transaction
+    const originalCredit = await prisma.transaction.findFirst({
       where: {
         id: data.creditId,
-        userId // Ensure the user owns this credit
+        userId: user.id,
+        type: "credit",
       },
       include: {
-        repayments: true
-      }
+        repayments: true,
+      },
     });
     
     if (!originalCredit) {
@@ -40,49 +58,103 @@ export async function POST(req: NextRequest) {
       );
     }
     
-    // Calculate current balance
+    // Calculate current balance before this repayment
     const totalRepaid = originalCredit.repayments.reduce(
-      (sum, repayment) => sum + repayment.amount, 
+      (sum, repayment) => sum + repayment.amount,
       0
     );
     const currentBalance = originalCredit.amount - totalRepaid;
     
-    // Check if already fully settled
-    if (originalCredit.repayments.some(r => r.isFullSettlement)) {
+    // Validate repayment amount doesn't exceed remaining balance
+    if (data.amount > currentBalance && !data.isFullSettlement) {
       return NextResponse.json(
-        { error: "This credit has already been fully settled" },
+        { 
+          error: "Repayment amount exceeds remaining balance. If this is intended to fully settle the debt, please mark it as a full settlement." 
+        },
         { status: 400 }
       );
     }
     
+    // If marked as full settlement but amount is less than balance, use the full balance amount
+    const repaymentAmount = data.isFullSettlement && data.amount < currentBalance 
+      ? currentBalance 
+      : data.amount;
+    
     // Create the repayment transaction
-    const repayment = await db.transaction.create({
+    const repayment = await prisma.transaction.create({
       data: {
-        userId,
+        userId: user.id,
         accountId: data.accountId,
-        amount: data.amount,
-        description: data.description || `Repayment for ${originalCredit.description}`,
-        date: data.date || new Date(),
+        amount: repaymentAmount,
+        date: new Date(data.date || Date.now()),
         type: "credit",
-        creditType: originalCredit.creditType, // Same as original
-        counterparty: originalCredit.counterparty, // Same as original
+        creditId: originalCredit.id,
         isRepayment: true,
-        creditId: data.creditId, // Reference to original credit
-        isFullSettlement: data.isFullSettlement || false,
-        categoryId: data.categoryId
-      }
+        isFullSettlement: !!data.isFullSettlement,
+        description: data.description || `Repayment for ${originalCredit.counterparty}`,
+        categoryId: data.categoryId,
+        // Set the opposite credit type of the original
+        creditType: originalCredit.creditType === "lent" ? "borrowed" : "lent",
+        counterparty: originalCredit.counterparty,
+      },
     });
     
-    // If marked as fully settled, update the remaining balance info
-    let remainingBalance = currentBalance - data.amount;
+    // Update account balance
+    await prisma.account.update({
+      where: { id: data.accountId },
+      data: {
+        // If original was lent, increase balance on repayment; if borrowed, decrease balance
+        balance: {
+          [originalCredit.creditType === "lent" ? "increment" : "decrement"]: repaymentAmount,
+        },
+      },
+    });
+    
+    // Fetch the updated credit with repayments
+    const updatedCredit = await prisma.transaction.findUnique({
+      where: { id: originalCredit.id },
+      include: {
+        repayments: {
+          orderBy: {
+            date: "desc",
+          },
+        },
+      },
+    });
+    
+    // Calculate updated balance
+    const updatedTotalRepaid = updatedCredit!.repayments.reduce(
+      (sum, r) => sum + r.amount,
+      0
+    );
+    const updatedBalance = updatedCredit!.amount - updatedTotalRepaid;
+    const isNowSettled = updatedCredit!.repayments.some(r => r.isFullSettlement) || 
+                         Math.abs(updatedBalance) < 0.01;
+    
+    // Transform the data for response
+    const transformedCredit = {
+      id: updatedCredit!.id,
+      accountId: updatedCredit!.accountId,
+      amount: updatedCredit!.amount,
+      currentBalance: updatedBalance,
+      description: updatedCredit!.description || "",
+      date: updatedCredit!.date.toISOString(),
+      counterparty: updatedCredit!.counterparty || "",
+      creditType: updatedCredit!.creditType as "lent" | "borrowed",
+      dueDate: updatedCredit!.recurringEndDate?.toISOString(),
+      isSettled: isNowSettled,
+      totalRepaid: updatedTotalRepaid,
+      repayments: updatedCredit!.repayments.map(r => ({
+        id: r.id,
+        amount: r.amount,
+        date: r.date.toISOString(),
+        isFullSettlement: r.isFullSettlement,
+      })),
+    };
     
     return NextResponse.json({
       repayment,
-      originalCredit: {
-        ...originalCredit,
-        currentBalance: remainingBalance,
-        isSettled: data.isFullSettlement || remainingBalance <= 0
-      }
+      originalCredit: transformedCredit,
     });
   } catch (error) {
     console.error("Error recording repayment:", error);

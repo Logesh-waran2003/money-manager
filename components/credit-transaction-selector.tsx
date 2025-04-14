@@ -6,7 +6,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useCreditTransactions } from '@/hooks/use-credit-transactions';
 import { CreditType } from '@/lib/stores/credit-store';
 import { format } from 'date-fns';
-import { Loader2 } from 'lucide-react';
+import { Loader2, AlertCircle } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
 interface CreditTransactionSelectorProps {
   value: string;
@@ -38,6 +39,12 @@ export default function CreditTransactionSelector({
   
   // Get the selected credit details
   const selectedCredit = credits.find(credit => credit.id === value);
+  
+  // Validate repayment amount doesn't exceed balance
+  const validateRepaymentAmount = (amount: number) => {
+    if (!selectedCredit) return true;
+    return amount <= selectedCredit.currentBalance;
+  };
   
   return (
     <div className="space-y-3">
@@ -77,16 +84,28 @@ export default function CreditTransactionSelector({
             </div>
             <div className="flex justify-between">
               <span className="text-sm font-medium">Current Balance:</span>
-              <span>${selectedCredit.currentBalance.toFixed(2)}</span>
+              <span className="font-semibold">${selectedCredit.currentBalance.toFixed(2)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-sm font-medium">Date:</span>
               <span>{format(new Date(selectedCredit.date), "MMM d, yyyy")}</span>
             </div>
             {selectedCredit.dueDate && (
-              <div className="flex justify-between">
+              <div className="flex justify-between items-center">
                 <span className="text-sm font-medium">Due Date:</span>
-                <span>{format(new Date(selectedCredit.dueDate), "MMM d, yyyy")}</span>
+                <div className="flex items-center gap-2">
+                  <span>{format(new Date(selectedCredit.dueDate), "MMM d, yyyy")}</span>
+                  {selectedCredit.isOverdue && (
+                    <Badge variant="destructive" className="text-xs">
+                      Overdue
+                    </Badge>
+                  )}
+                  {selectedCredit.daysUntilDue !== null && selectedCredit.daysUntilDue > 0 && selectedCredit.daysUntilDue <= 7 && (
+                    <Badge variant="outline" className="text-xs">
+                      Due soon
+                    </Badge>
+                  )}
+                </div>
               </div>
             )}
             {selectedCredit.description && (
@@ -99,6 +118,32 @@ export default function CreditTransactionSelector({
               <span className="text-sm font-medium">Repaid So Far:</span>
               <span>${selectedCredit.totalRepaid.toFixed(2)}</span>
             </div>
+            
+            {/* Show repayment history if any */}
+            {selectedCredit.repayments && selectedCredit.repayments.length > 0 && (
+              <div className="mt-2 pt-2 border-t border-border/50">
+                <span className="text-sm font-medium">Repayment History:</span>
+                <div className="mt-1 space-y-1 max-h-32 overflow-y-auto">
+                  {selectedCredit.repayments.map((repayment, index) => (
+                    <div key={index} className="text-xs flex justify-between">
+                      <span>{format(new Date(repayment.date), "MMM d, yyyy")}</span>
+                      <span>${repayment.amount.toFixed(2)}</span>
+                      {repayment.isFullSettlement && (
+                        <Badge variant="secondary" className="text-xs">Final</Badge>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {/* Warning for overdue credits */}
+            {selectedCredit.isOverdue && (
+              <div className="flex items-center gap-2 text-destructive text-sm mt-2">
+                <AlertCircle className="h-4 w-4" />
+                <span>This credit is {Math.abs(selectedCredit.daysUntilDue || 0)} days overdue</span>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

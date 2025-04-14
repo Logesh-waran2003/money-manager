@@ -1,127 +1,176 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/db";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 // GET /api/credits - Get all credit transactions for the current user
-export async function GET(req: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
-    const session = await auth();
+    const session = await getServerSession(authOptions);
     
-    if (!session?.user?.id) {
+    if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     
-    const userId = session.user.id;
-    const searchParams = req.nextUrl.searchParams;
-    const creditType = searchParams.get("type"); // "lent" or "borrowed"
+    // Get query parameters
+    const searchParams = request.nextUrl.searchParams;
+    const type = searchParams.get("type"); // 'lent' or 'borrowed'
     
-    // Get all credit transactions for the user
-    const credits = await db.transaction.findMany({
-      where: {
-        userId,
-        type: "credit",
-        creditType: creditType || undefined, // Filter by type if provided
-        // Only get parent credit transactions (not repayments)
-        isRepayment: false
-      },
-      include: {
-        account: {
-          select: {
-            id: true,
-            name: true,
-            type: true
-          }
-        },
-        // Include all repayments for this credit
-        repayments: {
-          select: {
-            id: true,
-            amount: true,
-            date: true,
-            isFullSettlement: true
-          }
-        }
-      },
-      orderBy: {
-        date: "desc"
-      }
+    // Find the user
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
     });
     
-    // Calculate current balance for each credit transaction
-    const creditsWithBalance = credits.map(credit => {
-      // Sum all repayments
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+    
+    // Build the query
+    const query: any = {
+      where: {
+        userId: user.id,
+        type: "credit",
+      },
+      include: {
+        account: true,
+        repayments: {
+          include: {
+            account: true,
+          },
+          orderBy: {
+            date: "desc",
+          },
+        },
+      },
+      orderBy: {
+        date: "desc",
+      },
+    };
+    
+    // Add credit type filter if provided
+    if (type === "lent" || type === "borrowed") {
+      query.where.creditType = type;
+    }
+    
+    // Get credit transactions
+    const credits = await prisma.transaction.findMany(query);
+    
+    // Transform the data to include calculated fields
+    const transformedCredits = credits.map(credit => {
+      // Calculate total repaid amount
       const totalRepaid = credit.repayments.reduce(
-        (sum, repayment) => sum + repayment.amount, 
+        (sum, repayment) => sum + repayment.amount,
         0
       );
       
-      // Calculate remaining balance
+      // Calculate current balance
       const currentBalance = credit.amount - totalRepaid;
       
-      // Check if fully settled
+      // Determine if the credit is fully settled
       const isSettled = credit.repayments.some(r => r.isFullSettlement) || 
-                        currentBalance <= 0;
+                        Math.abs(currentBalance) < 0.01; // Consider settled if balance is near zero
       
       return {
-        ...credit,
+        id: credit.id,
+        accountId: credit.accountId,
+        amount: credit.amount,
         currentBalance,
+        description: credit.description || "",
+        date: credit.date.toISOString(),
+        counterparty: credit.counterparty || "",
+        creditType: credit.creditType as "lent" | "borrowed",
+        dueDate: credit.recurringEndDate?.toISOString(),
         isSettled,
-        totalRepaid
+        totalRepaid,
+        repayments: credit.repayments.map(repayment => ({
+          id: repayment.id,
+          amount: repayment.amount,
+          date: repayment.date.toISOString(),
+          isFullSettlement: repayment.isFullSettlement,
+        })),
       };
     });
     
-    return NextResponse.json(creditsWithBalance);
+    return NextResponse.json(transformedCredits);
   } catch (error) {
     console.error("Error fetching credits:", error);
     return NextResponse.json(
-      { error: "Failed to fetch credit transactions" },
+      { error: "Failed to fetch credits" },
       { status: 500 }
     );
   }
 }
 
 // POST /api/credits - Create a new credit transaction
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    const session = await auth();
+    const session = await getServerSession(authOptions);
     
-    if (!session?.user?.id) {
+    if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     
-    const userId = session.user.id;
-    const data = await req.json();
+    const data = await request.json();
     
     // Validate required fields
-    if (!data.accountId || !data.amount || !data.counterparty || !data.creditType) {
+    if (!data.accountId || !data.amount || !data.creditType || !data.counterparty) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
       );
     }
     
+    // Validate amount is positive
+    if (data.amount <= 0) {
+      return NextResponse.json(
+        { error: "Amount must be greater than zero" },
+        { status: 400 }
+      );
+    }
+    
+    // Find the user
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+    });
+    
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+    
     // Create the credit transaction
-    const credit = await db.transaction.create({
+    const credit = await prisma.transaction.create({
       data: {
-        userId,
+        userId: user.id,
         accountId: data.accountId,
         amount: data.amount,
-        description: data.description || "",
-        date: data.date || new Date(),
+        date: new Date(data.date || Date.now()),
         type: "credit",
-        creditType: data.creditType, // "lent" or "borrowed"
+        creditType: data.creditType,
         counterparty: data.counterparty,
-        dueDate: data.dueDate,
+        description: data.description,
+        recurringEndDate: data.dueDate ? new Date(data.dueDate) : null,
         categoryId: data.categoryId,
-        isRepayment: false
-      }
+        appUsed: data.appUsed,
+        notes: data.notes,
+      },
+    });
+    
+    // Update account balance
+    await prisma.account.update({
+      where: { id: data.accountId },
+      data: {
+        // If lending money, decrease balance; if borrowing, increase balance
+        balance: {
+          [data.creditType === "lent" ? "decrement" : "increment"]: data.amount,
+        },
+      },
     });
     
     return NextResponse.json(credit);
   } catch (error) {
     console.error("Error creating credit:", error);
     return NextResponse.json(
-      { error: "Failed to create credit transaction" },
+      { error: "Failed to create credit" },
       { status: 500 }
     );
   }
