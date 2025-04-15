@@ -22,12 +22,10 @@ export default function CreditTransactionSelector({
   creditType,
   onBalanceChange
 }: CreditTransactionSelectorProps) {
-  // Use the opposite credit type for repayments
-  // If we're looking for credits to repay, we need to find:
-  // - "lent" credits when we're making a "borrowed" repayment
-  // - "borrowed" credits when we're making a "lent" repayment
-  const oppositeType = creditType === 'lent' ? 'borrowed' : 'lent';
-  const { credits, isLoading, error } = useCreditTransactions(oppositeType);
+  // Use the same credit type for repayments
+  // If we're making a repayment for a "lent" credit, we need to find "lent" credits
+  // If we're making a repayment for a "borrowed" credit, we need to find "borrowed" credits
+  const { credits, isLoading, error } = useCreditTransactions(creditType);
   
   // Filter out fully settled credits
   const activeCredits = credits.filter(credit => !credit.isSettled);
