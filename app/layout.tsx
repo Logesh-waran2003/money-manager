@@ -1,24 +1,15 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
-import { ThemeProvider } from "@/components/theme-provider";
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { Navbar } from "@/components/layout/navbar";
+import { AuthGuard } from "@/components/auth/auth-guard";
+import { Providers } from "./providers";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Money Manager",
-  description: "Track your finances with ease",
+  description: "A comprehensive personal finance tracking application",
 };
 
 export default function RootLayout({
@@ -27,17 +18,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        <ThemeProvider defaultTheme="system" storageKey="money-manager-theme">
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            {children}
-          </TooltipProvider>
-        </ThemeProvider>
+    <html lang="en">
+      <body className={inter.className}>
+        <Providers>
+          <AuthGuard>
+            <div className="relative min-h-screen flex flex-col">
+              <Navbar />
+              <main className="flex-1">{children}</main>
+            </div>
+          </AuthGuard>
+        </Providers>
       </body>
     </html>
   );

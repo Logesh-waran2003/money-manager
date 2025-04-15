@@ -9,17 +9,20 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { format } from "date-fns";
-import { CalendarIcon, Home } from "lucide-react";
+import { CalendarIcon, ArrowLeft } from "lucide-react";
 import AccountSelector from "@/components/account-selector";
+import CategorySelector from "@/components/category-selector";
 import TransactionFormFields from "@/components/transaction-form-fields";
 import PaymentTypeSelector from "@/components/payment-type-selector";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
-import { useTheme } from "@/components/theme-provider";
+import { useRouter } from "next/navigation";
+import { useTransactionStore } from "@/lib/stores/transaction-store";
 
 export default function TransactionForm() {
+  const router = useRouter();
   const { toast } = useToast();
-  const { theme } = useTheme();
+  const { addTransaction } = useTransactionStore();
   
   // Core transaction details
   const [selectedAccount, setSelectedAccount] = useState("");
@@ -29,6 +32,7 @@ export default function TransactionForm() {
   const [direction, setDirection] = useState("sent");
   const [counterparty, setCounterparty] = useState("");
   const [appUsed, setAppUsed] = useState("");
+  const [category, setCategory] = useState("");
   
   // Transaction type toggles
   const [isCredit, setIsCredit] = useState(false);
@@ -47,6 +51,24 @@ export default function TransactionForm() {
     e.preventDefault();
     
     // Validate form based on transaction type
+    if (!selectedAccount) {
+      toast({
+        title: "Missing Information",
+        description: "Please select an account",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!amount || isNaN(parseFloat(amount))) {
+      toast({
+        title: "Invalid Amount",
+        description: "Please enter a valid amount",
+        variant: "destructive"
+      });
+      return;
+    }
+
     if (transactionType === "recurring" && !recurringName) {
       toast({
         title: "Missing Information",
@@ -74,21 +96,48 @@ export default function TransactionForm() {
       return;
     }
 
-    console.log({
-      transactionType,
-      selectedAccount,
-      destinationAccount,
-      amount,
+    if ((transactionType === "regular" || transactionType === "credit") && !counterparty) {
+      toast({
+        title: "Missing Information",
+        description: "Please enter a counterparty",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if ((transactionType === "income" || transactionType === "expense") && !category) {
+      toast({
+        title: "Missing Information",
+        description: "Please select a category",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Create transaction object
+    const transaction = {
+      id: `temp-${Date.now()}`, // This would be replaced by the server-generated ID
+      accountId: selectedAccount,
+      amount: parseFloat(amount),
       description,
-      date,
-      direction,
-      appUsed,
+      date: date?.toISOString() || new Date().toISOString(),
+      type: transactionType,
+      categoryId: category || undefined,
       counterparty,
-      recurringName,
-      recurringFrequency,
-      creditType,
-      creditDueDate,
-    });
+      appUsed,
+      toAccountId: isTransfer ? destinationAccount : undefined,
+      creditType: isCredit ? creditType : undefined,
+      dueDate: isCredit ? creditDueDate?.toISOString() : undefined,
+      frequency: isRecurring ? recurringFrequency : undefined,
+      recurringName: isRecurring ? recurringName : undefined,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    console.log(transaction);
+
+    // Add transaction to store
+    addTransaction(transaction);
 
     // Prepare appropriate message based on transaction type
     let message = "";
@@ -103,7 +152,7 @@ export default function TransactionForm() {
     } else if (transactionType === "recurring") {
       message = `Added recurring payment "${recurringName}" of $${amount} (${recurringFrequency})`;
     } else if (transactionType === "transfer") {
-      message = `Transferred $${amount} from ${selectedAccount} to ${destinationAccount}`;
+      message = `Transferred $${amount} between accounts`;
     }
 
     toast({
@@ -111,26 +160,20 @@ export default function TransactionForm() {
       description: message,
     });
 
-    // Reset form (optional)
-    setAmount("");
-    setDescription("");
-    setCounterparty("");
-    setAppUsed("");
-    setRecurringName("");
+    // Navigate back to transactions page
+    router.push("/transactions");
   };
 
   return (
-    <div className="container max-w-3xl py-10 px-4">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-center">New Transaction</h1>
-        <Link href="/">
-          <Button variant="outline" size="icon">
-            <Home className="h-5 w-5" />
-          </Button>
-        </Link>
+    <div className="container mx-auto max-w-3xl py-8 px-4">
+      <div className="flex items-center mb-6 gap-4">
+        <Button variant="ghost" size="icon" onClick={() => router.back()}>
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <h1 className="text-2xl font-bold">New Transaction</h1>
       </div>
       
-      <Card className="p-6 shadow-sm border-opacity-50 bg-card">
+      <Card className="p-6 shadow-md">
         <form onSubmit={handleSubmit} className="space-y-6">
           {!isTransfer ? (
             <AccountSelector 
@@ -185,7 +228,7 @@ export default function TransactionForm() {
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   placeholder="0.00"
-                  className="pl-8 bg-background border-input"
+                  className="pl-8"
                   required
                 />
               </div>
@@ -198,7 +241,7 @@ export default function TransactionForm() {
                   <Button
                     variant="outline"
                     className={cn(
-                      "w-full justify-start text-left font-normal bg-background border-input",
+                      "w-full justify-start text-left font-normal",
                       !date && "text-muted-foreground"
                     )}
                   >
@@ -217,6 +260,18 @@ export default function TransactionForm() {
               </Popover>
             </div>
           </div>
+
+          {/* Category selector for non-transfer transactions */}
+          {!isTransfer && !isCredit && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Category</label>
+              <CategorySelector
+                selectedCategory={category}
+                onChange={setCategory}
+                type={direction === "received" ? "income" : "expense"}
+              />
+            </div>
+          )}
 
           {/* Transaction type specific additional fields */}
           {isRecurring && (
@@ -243,7 +298,7 @@ export default function TransactionForm() {
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
-                    className="w-full justify-start text-left font-normal bg-background border-input"
+                    className="w-full justify-start text-left font-normal"
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {creditDueDate ? (
@@ -271,12 +326,17 @@ export default function TransactionForm() {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Enter transaction details..."
-              className="resize-none bg-background border-input"
+              className="resize-none"
               rows={3}
             />
           </div>
 
-          <Button type="submit" className="w-full">Save Transaction</Button>
+          <div className="flex justify-end space-x-3 pt-2">
+            <Button type="button" variant="outline" onClick={() => router.back()}>
+              Cancel
+            </Button>
+            <Button type="submit">Save Transaction</Button>
+          </div>
         </form>
       </Card>
     </div>
