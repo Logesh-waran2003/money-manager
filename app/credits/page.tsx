@@ -59,52 +59,21 @@ export default function CreditsPage() {
     0
   );
 
-  const markAsPaid = async (id: string) => {
-    try {
-      setIsLoading(true);
-      
-      // Find the transaction to get its creditId
-      const transaction = transactions.find(t => t.id === id);
-      
-      if (!transaction || !transaction.creditId) {
-        toast({
-          title: "Error",
-          description: "Could not find credit information for this transaction",
-          variant: "destructive",
-        });
-        return;
-      }
-      
-      // Call the API to mark the credit as paid
-      const response = await fetch('/api/credits', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ id: transaction.creditId }),
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to mark as paid');
-      }
-      
-      // Refresh the transactions list
-      await fetchTransactions();
-      
-      toast({
-        title: "Success",
-        description: "Transaction marked as paid",
-      });
-    } catch (error) {
-      console.error('Error marking as paid:', error);
-      toast({
-        title: "Error",
-        description: "Failed to mark transaction as paid",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
+  const markAsPaid = (transaction) => {
+    // Redirect to transaction page with prefilled data
+    const params = new URLSearchParams({
+      type: 'credit',
+      isRepayment: 'true',
+      creditId: transaction.creditId || '',
+      creditType: transaction.creditType === 'borrowed' ? 'borrowed' : 'lent',
+      counterparty: transaction.counterparty || '',
+      amount: transaction.currentBalance ? transaction.currentBalance.toString() : transaction.amount.toString(),
+      description: `Repayment for ${transaction.description || transaction.counterparty}`,
+      date: new Date().toISOString().split('T')[0]
+    });
+    
+    // Navigate to transaction page with prefilled data
+    window.location.href = `/transaction?${params.toString()}`;
   };
 
   return (
@@ -190,7 +159,11 @@ export default function CreditsPage() {
                     </div>
                   </div>
                   <div className="bg-muted p-2 flex justify-end">
-                    <Button variant="outline" size="sm" onClick={() => markAsPaid(transaction.id)}>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => markAsPaid(transaction)}
+                    >
                       <Check className="mr-1 h-3 w-3" /> Mark as Paid
                     </Button>
                   </div>
@@ -237,7 +210,11 @@ export default function CreditsPage() {
                     </div>
                   </div>
                   <div className="bg-muted p-2 flex justify-end">
-                    <Button variant="outline" size="sm" onClick={() => markAsPaid(transaction.id)}>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => markAsPaid(transaction)}
+                    >
                       <Check className="mr-1 h-3 w-3" /> Mark as Repaid
                     </Button>
                   </div>
