@@ -22,7 +22,12 @@ export default function CreditTransactionSelector({
   creditType,
   onBalanceChange
 }: CreditTransactionSelectorProps) {
-  const { credits, isLoading, error } = useCreditTransactions(creditType);
+  // Use the opposite credit type for repayments
+  // If we're looking for credits to repay, we need to find:
+  // - "lent" credits when we're making a "borrowed" repayment
+  // - "borrowed" credits when we're making a "lent" repayment
+  const oppositeType = creditType === 'lent' ? 'borrowed' : 'lent';
+  const { credits, isLoading, error } = useCreditTransactions(oppositeType);
   
   // Filter out fully settled credits
   const activeCredits = credits.filter(credit => !credit.isSettled);
@@ -39,12 +44,6 @@ export default function CreditTransactionSelector({
   
   // Get the selected credit details
   const selectedCredit = credits.find(credit => credit.id === value);
-  
-  // Validate repayment amount doesn't exceed balance
-  const validateRepaymentAmount = (amount: number) => {
-    if (!selectedCredit) return true;
-    return amount <= selectedCredit.currentBalance;
-  };
   
   return (
     <div className="space-y-3">

@@ -5,10 +5,11 @@ export function useCreditTransactions(type?: CreditType) {
   const { credits, isLoading, error, fetchCredits } = useCreditStore();
   const [filteredCredits, setFilteredCredits] = useState<CreditTransaction[]>([]);
   
-  // Fetch credits on component mount
+  // Fetch credits on component mount - only once
   useEffect(() => {
-    fetchCredits(type);
-  }, [fetchCredits, type]);
+    // We don't need to call fetchCredits on every render or type change
+    // The parent component should handle fetching when needed
+  }, []); // Empty dependency array ensures this runs only once
   
   // Filter credits by type if specified
   useEffect(() => {

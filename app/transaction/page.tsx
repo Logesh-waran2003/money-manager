@@ -37,6 +37,7 @@ export default function TransactionForm() {
     null
   );
 
+  // Get URL parameters and prefetch credits
   useEffect(() => {
     // Get URL parameters
     if (typeof window !== "undefined") {
@@ -49,6 +50,17 @@ export default function TransactionForm() {
         setTransactionType("transfer");
       }
     }
+    
+    // Prefetch credits for both lent and borrowed types
+    const fetchCredits = async () => {
+      try {
+        await useCreditStore.getState().fetchCredits();
+      } catch (error) {
+        console.error("Error prefetching credits:", error);
+      }
+    };
+    
+    fetchCredits();
   }, []);
 
   // Core transaction details
@@ -178,12 +190,12 @@ export default function TransactionForm() {
     // Validate repayment amount doesn't exceed balance
     if (isCredit && isRepayment && selectedCreditId) {
       try {
-        const isValid = useCreditStore.getState().validateRepaymentAmount(
-          selectedCreditId,
-          parseFloat(amount)
-        );
+        // Get the credits from the store
+        const credits = useCreditStore.getState().credits;
+        const selectedCredit = credits.find(c => c.id === selectedCreditId);
         
-        if (!isValid && !isFullSettlement) {
+        // Only validate if we found the credit
+        if (selectedCredit && !isFullSettlement && parseFloat(amount) > selectedCredit.currentBalance) {
           toast({
             title: "Invalid Repayment Amount",
             description: "Repayment amount exceeds the remaining balance. If this is intended to fully settle the debt, please mark it as a full settlement.",
@@ -249,6 +261,11 @@ export default function TransactionForm() {
             | "expense"
             | "transfer"
             | "credit",
+          creditType: isCredit ? creditType : undefined,
+          dueDate: isCredit ? creditDueDate?.toISOString() : undefined,
+          isRepayment: isCredit ? isRepayment : undefined,
+          creditId: isCredit && isRepayment ? selectedCreditId : undefined,
+          isFullSettlement: isCredit && isRepayment ? isFullSettlement : undefined,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         });

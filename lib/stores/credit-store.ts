@@ -7,7 +7,6 @@ export type CreditType = 'lent' | 'borrowed';
 // Define credit transaction interface
 export interface CreditTransaction {
   id: string;
-  accountId: string;
   amount: number;
   currentBalance: number;
   description: string;
@@ -28,6 +27,7 @@ export interface CreditRepayment {
   amount: number;
   date: string;
   isFullSettlement: boolean;
+  accountName?: string;
 }
 
 // Define credit store state

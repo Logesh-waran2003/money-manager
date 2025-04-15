@@ -1,92 +1,105 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 
 // GET /api/credits - Get all credit transactions for the current user
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await auth();
     
-    if (!session?.user?.email) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    
+    const userId = session.user.id;
     
     // Get query parameters
     const searchParams = request.nextUrl.searchParams;
     const type = searchParams.get("type"); // 'lent' or 'borrowed'
     
-    // Find the user
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-    });
-    
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-    
     // Build the query
     const query: any = {
       where: {
-        userId: user.id,
-        type: "credit",
+        userId,
       },
       include: {
-        account: true,
-        repayments: {
-          include: {
-            account: true,
+        transactions: {
+          where: {
+            isRepayment: true,
           },
           orderBy: {
             date: "desc",
           },
+          include: {
+            account: true,
+          },
         },
       },
       orderBy: {
-        date: "desc",
+        createdAt: "desc",
       },
     };
     
     // Add credit type filter if provided
     if (type === "lent" || type === "borrowed") {
-      query.where.creditType = type;
+      query.where.type = type;
     }
     
-    // Get credit transactions
-    const credits = await prisma.transaction.findMany(query);
+    // Get credit records
+    const credits = await prisma.credit.findMany(query);
     
     // Transform the data to include calculated fields
     const transformedCredits = credits.map(credit => {
       // Calculate total repaid amount
-      const totalRepaid = credit.repayments.reduce(
+      const totalRepaid = credit.transactions.reduce(
         (sum, repayment) => sum + repayment.amount,
         0
       );
       
-      // Calculate current balance
-      const currentBalance = credit.amount - totalRepaid;
+      // Calculate current balance (use stored value or calculate)
+      const currentBalance = credit.currentBalance || (credit.amount - totalRepaid);
       
       // Determine if the credit is fully settled
-      const isSettled = credit.repayments.some(r => r.isFullSettlement) || 
+      const isSettled = credit.isFullySettled || 
+                        credit.transactions.some(r => r.isFullSettlement) || 
                         Math.abs(currentBalance) < 0.01; // Consider settled if balance is near zero
+      
+      // Calculate days until due
+      let daysUntilDue = null;
+      let isOverdue = false;
+      
+      if (credit.dueDate) {
+        const dueDate = new Date(credit.dueDate);
+        const today = new Date();
+        
+        // Reset time part for accurate day calculation
+        today.setHours(0, 0, 0, 0);
+        dueDate.setHours(0, 0, 0, 0);
+        
+        const diffTime = dueDate.getTime() - today.getTime();
+        daysUntilDue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        isOverdue = daysUntilDue < 0;
+      }
       
       return {
         id: credit.id,
-        accountId: credit.accountId,
         amount: credit.amount,
         currentBalance,
-        description: credit.description || "",
-        date: credit.date.toISOString(),
-        counterparty: credit.counterparty || "",
-        creditType: credit.creditType as "lent" | "borrowed",
-        dueDate: credit.recurringEndDate?.toISOString(),
+        description: credit.name,
+        date: credit.createdAt.toISOString(),
+        counterparty: credit.counterparty,
+        creditType: credit.type as "lent" | "borrowed",
+        dueDate: credit.dueDate?.toISOString(),
         isSettled,
         totalRepaid,
-        repayments: credit.repayments.map(repayment => ({
+        daysUntilDue,
+        isOverdue,
+        repayments: credit.transactions.map(repayment => ({
           id: repayment.id,
           amount: repayment.amount,
           date: repayment.date.toISOString(),
           isFullSettlement: repayment.isFullSettlement,
+          accountName: repayment.account?.name || "",
         })),
       };
     });
@@ -104,12 +117,13 @@ export async function GET(request: NextRequest) {
 // POST /api/credits - Create a new credit transaction
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await auth();
     
-    if (!session?.user?.email) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     
+    const userId = session.user.id;
     const data = await request.json();
     
     // Validate required fields
@@ -128,45 +142,57 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Find the user
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
+    // Use a transaction to ensure both operations succeed or fail together
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Create the Credit record
+      const credit = await tx.credit.create({
+        data: {
+          userId,
+          name: data.description || `${data.creditType === "lent" ? "Lent to" : "Borrowed from"} ${data.counterparty}`,
+          amount: data.amount,
+          type: data.creditType,
+          counterparty: data.counterparty,
+          dueDate: data.dueDate ? new Date(data.dueDate) : null,
+          notes: data.notes,
+          isPaid: false,
+          isFullySettled: false,
+          currentBalance: data.amount // This field does exist in the database
+        }
+      });
+      
+      // 2. Create the Transaction record that references the Credit
+      const transaction = await tx.transaction.create({
+        data: {
+          userId,
+          accountId: data.accountId,
+          amount: data.amount,
+          date: new Date(data.date || Date.now()),
+          type: "credit",
+          creditType: data.creditType,
+          counterparty: data.counterparty,
+          description: data.description,
+          creditId: credit.id, // Link to the newly created Credit
+          categoryId: data.categoryId,
+          appUsed: data.appUsed,
+          notes: data.notes,
+        }
+      });
+      
+      // 3. Update account balance
+      await tx.account.update({
+        where: { id: data.accountId },
+        data: {
+          // If lending money, decrease balance; if borrowing, increase balance
+          balance: {
+            [data.creditType === "lent" ? "decrement" : "increment"]: data.amount,
+          },
+        }
+      });
+      
+      return { credit, transaction };
     });
     
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-    
-    // Create the credit transaction
-    const credit = await prisma.transaction.create({
-      data: {
-        userId: user.id,
-        accountId: data.accountId,
-        amount: data.amount,
-        date: new Date(data.date || Date.now()),
-        type: "credit",
-        creditType: data.creditType,
-        counterparty: data.counterparty,
-        description: data.description,
-        recurringEndDate: data.dueDate ? new Date(data.dueDate) : null,
-        categoryId: data.categoryId,
-        appUsed: data.appUsed,
-        notes: data.notes,
-      },
-    });
-    
-    // Update account balance
-    await prisma.account.update({
-      where: { id: data.accountId },
-      data: {
-        // If lending money, decrease balance; if borrowing, increase balance
-        balance: {
-          [data.creditType === "lent" ? "decrement" : "increment"]: data.amount,
-        },
-      },
-    });
-    
-    return NextResponse.json(credit);
+    return NextResponse.json(result);
   } catch (error) {
     console.error("Error creating credit:", error);
     return NextResponse.json(

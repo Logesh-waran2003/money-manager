@@ -53,23 +53,31 @@ export async function POST(request: NextRequest) {
 
     // Handle credit transactions with dueDate
     if (data.type === 'credit' && data.dueDate) {
-      // Create a Credit record first
-      const credit = await prisma.credit.create({
-        data: {
-          userId: user.id,
-          name: data.description || `${data.creditType === 'lent' ? 'Lent to' : 'Borrowed from'} ${data.counterparty}`,
-          amount: data.amount,
-          type: data.creditType,
-          counterparty: data.counterparty,
-          dueDate: new Date(data.dueDate),
-          notes: data.notes,
-        }
-      });
+      try {
+        // Create a Credit record first
+        const credit = await prisma.credit.create({
+          data: {
+            userId: user.id,
+            name: data.description || `${data.creditType === 'lent' ? 'Lent to' : 'Borrowed from'} ${data.counterparty}`,
+            amount: data.amount,
+            type: data.creditType,
+            counterparty: data.counterparty,
+            dueDate: new Date(data.dueDate),
+            notes: data.notes,
+          }
+        });
+        
+        // Add the creditId to the transaction data
+        data.creditId = credit.id;
+      } catch (error) {
+        console.error("Error creating credit record:", error);
+        // Continue without creating a Credit record - we'll just use the Transaction
+      }
       
-      // Add the creditId to the transaction data
-      data.creditId = credit.id;
+      // Store dueDate in recurringEndDate field for Transaction
+      data.recurringEndDate = new Date(data.dueDate);
       
-      // Remove dueDate from transaction data as it's not in the schema
+      // Remove dueDate from transaction data as it's not directly in the schema
       delete data.dueDate;
     }
 
@@ -169,13 +177,13 @@ export async function POST(request: NextRequest) {
       }
     } else if (data.type === 'credit') {
       if (data.creditType === 'borrowed') {
-        // For borrowing money (making a purchase), increase the balance (debt)
+        // For borrowing money, increase the balance (positive amount)
         await prisma.account.update({
           where: { id: data.accountId },
           data: { balance: { increment: data.amount } },
         });
       } else if (data.creditType === 'lent') {
-        // For lending money (making a payment), decrease the balance (debt)
+        // For lending money, decrease the balance (negative amount)
         await prisma.account.update({
           where: { id: data.accountId },
           data: { balance: { decrement: data.amount } },

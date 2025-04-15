@@ -119,6 +119,63 @@ export function TransactionCard({
     }
   };
 
+  // Determine the sign and styling for the amount
+  const getAmountDisplay = () => {
+    // For credit transactions
+    if (type === "credit") {
+      // Check if this is a credit transaction with creditType
+      const creditType = (description || "").toLowerCase().includes("lent") ? "lent" : 
+                         (description || "").toLowerCase().includes("borrowed") ? "borrowed" : null;
+      
+      if (creditType === "lent") {
+        // Lent money should be negative (money going out)
+        return {
+          prefix: "-",
+          className: "text-error"
+        };
+      } else if (creditType === "borrowed") {
+        // Borrowed money should be positive (money coming in)
+        return {
+          prefix: "+",
+          className: "text-success"
+        };
+      }
+    }
+    
+    // For other transaction types
+    if (type === "income") {
+      return {
+        prefix: "+",
+        className: "text-success"
+      };
+    } else if (type === "expense") {
+      return {
+        prefix: "-",
+        className: "text-error"
+      };
+    } else if (type === "transfer" && showInAccount) {
+      // For transfers in account view
+      if (accountId === toAccountId) {
+        return {
+          prefix: "+",
+          className: "text-success"
+        };
+      } else {
+        return {
+          prefix: "-",
+          className: "text-error"
+        };
+      }
+    }
+    
+    return {
+      prefix: "",
+      className: ""
+    };
+  };
+
+  const amountDisplay = getAmountDisplay();
+
   // Format the date
   const formattedDate = formatTransactionDate(date);
 
@@ -152,19 +209,9 @@ export function TransactionCard({
         <div className="text-right">
           <div className={cn(
             "font-medium font-mono",
-            type === "income" ? "text-success" : 
-            type === "expense" ? "text-error" : 
-            type === "transfer" && showInAccount ? (
-              // For transfers in account view
-              accountId === toAccountId ? "text-success" : "text-error"
-            ) : ""
+            amountDisplay.className
           )}>
-            {type === "income" ? "+" : 
-             type === "expense" ? "-" : 
-             type === "transfer" && showInAccount ? (
-               // For transfers in account view
-               accountId === toAccountId ? "+" : "-"
-             ) : ""}
+            {amountDisplay.prefix}
             {formatCurrency(amount)}
           </div>
           <div className="text-xs text-muted-foreground">{formattedDate}</div>

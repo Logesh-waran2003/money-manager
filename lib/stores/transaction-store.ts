@@ -17,6 +17,12 @@ export interface Transaction {
   notes?: string;
   createdAt: string;
   updatedAt: string;
+  // Credit specific fields
+  creditType?: 'lent' | 'borrowed';
+  dueDate?: string;
+  isRepayment?: boolean;
+  isFullSettlement?: boolean;
+  creditId?: string;
 }
 
 interface TransactionFilters {
@@ -179,30 +185,58 @@ export const useTransactionStore = create<TransactionStore>()(
               transactions: [...state.transactions, transaction],
             }));
             
-            // Then try to save to the API
-            const response = await fetch('/api/transactions', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify(transaction),
-            });
+            let response;
+            
+            // Route credit transactions to the credits API
+            if (transaction.type === 'credit' && !transaction.isRepayment) {
+              console.log('Sending credit transaction to /api/credits');
+              response = await fetch('/api/credits', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(transaction),
+              });
+            } else if (transaction.type === 'credit' && transaction.isRepayment) {
+              console.log('Sending credit repayment to /api/credits/repay');
+              response = await fetch('/api/credits/repay', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(transaction),
+              });
+            } else {
+              // Regular transactions go to the transactions API
+              console.log('Sending regular transaction to /api/transactions');
+              response = await fetch('/api/transactions', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(transaction),
+              });
+            }
             
             if (!response.ok) {
-              throw new Error('Failed to save transaction');
+              const errorData = await response.json();
+              throw new Error(errorData.error || 'Failed to save transaction');
             }
             
             // Get the saved transaction with server-generated ID
             const savedTransaction = await response.json();
             
+            // For credit transactions, the response includes both credit and transaction
+            const actualTransaction = savedTransaction.transaction || savedTransaction;
+            
             // Replace the optimistic transaction with the saved one
             set((state) => ({
               transactions: state.transactions.map((t) => 
-                t.id === transaction.id ? savedTransaction : t
+                t.id === transaction.id ? actualTransaction : t
               ),
             }));
             
-            return savedTransaction;
+            return actualTransaction;
           } catch (error) {
             console.error('Error saving transaction:', error);
             // If there was an error, remove the optimistic transaction

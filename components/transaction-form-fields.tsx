@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import PaymentTypeSelector from "./payment-type-selector";
 import { Switch } from "@/components/ui/switch";
@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { CreditCard, Repeat, DollarSign, ArrowRightLeft } from "lucide-react";
 import CreditTransactionSelector from "@/components/credit-transaction-selector";
+import { useCreditStore } from "@/lib/stores/credit-store";
 
 // Payment apps list
 const paymentApps = [
@@ -69,6 +70,20 @@ const TransactionFormFields: React.FC<TransactionFormFieldsProps> = ({
   selectedCreditId = "",
   setSelectedCreditId = () => {}
 }) => {
+  // Prefetch credits when component mounts - only once
+  useEffect(() => {
+    // Prefetch credits for both lent and borrowed types
+    const fetchCredits = async () => {
+      try {
+        await useCreditStore.getState().fetchCredits();
+      } catch (error) {
+        console.error("Error prefetching credits:", error);
+      }
+    };
+    
+    fetchCredits();
+  }, []); // Empty dependency array ensures this runs only once
+
   // Handle transaction type selection based on toggles
   const handleCreditToggle = (checked: boolean) => {
     setIsCredit(checked);
