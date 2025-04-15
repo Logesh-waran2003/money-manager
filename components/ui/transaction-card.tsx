@@ -125,7 +125,8 @@ export function TransactionCard({
     if (type === "credit") {
       // Check if this is a credit transaction with creditType
       const creditType = (description || "").toLowerCase().includes("lent") ? "lent" : 
-                         (description || "").toLowerCase().includes("borrowed") ? "borrowed" : null;
+                         (description || "").toLowerCase().includes("borrowed") ? "borrowed" : 
+                         (description || "").toLowerCase().includes("repayment") ? "repayment" : null;
       
       if (creditType === "lent") {
         // Lent money should be negative (money going out)
@@ -139,6 +140,20 @@ export function TransactionCard({
           prefix: "+",
           className: "text-success"
         };
+      } else if (creditType === "repayment") {
+        // For repayments, if it contains "borrowed", it's money going out (negative)
+        // If it contains "lent", it's money coming in (positive)
+        if ((description || "").toLowerCase().includes("borrowed")) {
+          return {
+            prefix: "-",
+            className: "text-error"
+          };
+        } else {
+          return {
+            prefix: "+",
+            className: "text-success"
+          };
+        }
       }
     }
     
