@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import PaymentTypeSelector from "./payment-type-selector";
 import { Switch } from "@/components/ui/switch";
@@ -10,6 +10,7 @@ import { CreditCard, Repeat, DollarSign, ArrowRightLeft } from "lucide-react";
 import CreditTransactionSelector from "@/components/credit-transaction-selector";
 import RecurringPaymentSelector from "@/components/recurring-payment-selector";
 import { useCreditStore } from "@/lib/stores/credit-store";
+import { useRecurringPaymentStore } from "@/lib/stores/recurring-payment-store";
 
 // Payment apps list
 const paymentApps = [
@@ -22,7 +23,17 @@ const paymentApps = [
   { value: "other", label: "Other" }
 ];
 
-interface TransactionFormFieldsProps {
+// Frequency options for recurring payments
+const frequencyOptions = [
+  { value: "daily", label: "Daily" },
+  { value: "weekly", label: "Weekly" },
+  { value: "monthly", label: "Monthly" },
+  { value: "quarterly", label: "Quarterly" },
+  { value: "yearly", label: "Yearly" },
+  { value: "custom", label: "Custom Interval" }
+];
+
+interface EnhancedTransactionFormFieldsProps {
   direction: string;
   setDirection: (value: string) => void;
   counterparty: string;
@@ -35,6 +46,18 @@ interface TransactionFormFieldsProps {
   setCreditType: (value: string) => void;
   recurringName: string;
   setRecurringName: (value: string) => void;
+  recurringFrequency: string;
+  setRecurringFrequency: (value: string) => void;
+  customIntervalDays: string;
+  setCustomIntervalDays: (value: string) => void;
+  amount: string;
+  setAmount: (value: string) => void;
+  description: string;
+  setDescription: (value: string) => void;
+  selectedAccount: string;
+  setSelectedAccount: (value: string) => void;
+  category: string;
+  setCategory: (value: string) => void;
   isCredit: boolean;
   setIsCredit: (value: boolean) => void;
   isRecurring: boolean;
@@ -47,10 +70,9 @@ interface TransactionFormFieldsProps {
   setSelectedCreditId?: (value: string) => void;
   selectedRecurringPaymentId?: string;
   setSelectedRecurringPaymentId?: (value: string) => void;
-  onRecurringPaymentSelect?: (payment: any) => void;
 }
 
-const TransactionFormFields: React.FC<TransactionFormFieldsProps> = ({
+const EnhancedTransactionFormFields: React.FC<EnhancedTransactionFormFieldsProps> = ({
   direction,
   setDirection,
   counterparty,
@@ -63,6 +85,18 @@ const TransactionFormFields: React.FC<TransactionFormFieldsProps> = ({
   setCreditType,
   recurringName,
   setRecurringName,
+  recurringFrequency,
+  setRecurringFrequency,
+  customIntervalDays,
+  setCustomIntervalDays,
+  amount,
+  setAmount,
+  description,
+  setDescription,
+  selectedAccount,
+  setSelectedAccount,
+  category,
+  setCategory,
   isCredit,
   setIsCredit,
   isRecurring,
@@ -74,21 +108,23 @@ const TransactionFormFields: React.FC<TransactionFormFieldsProps> = ({
   selectedCreditId = "",
   setSelectedCreditId = () => {},
   selectedRecurringPaymentId = "",
-  setSelectedRecurringPaymentId = () => {},
-  onRecurringPaymentSelect = () => {}
+  setSelectedRecurringPaymentId = () => {}
 }) => {
-  // Prefetch credits when component mounts - only once
+  // Prefetch credits and recurring payments when component mounts
   useEffect(() => {
-    // Prefetch credits for both lent and borrowed types
-    const fetchCredits = async () => {
+    const fetchData = async () => {
       try {
+        // Fetch credits
         await useCreditStore.getState().fetchCredits();
+        
+        // Fetch recurring payments
+        await useRecurringPaymentStore.getState().fetchRecurringPayments();
       } catch (error) {
-        console.error("Error prefetching credits:", error);
+        console.error("Error prefetching data:", error);
       }
     };
     
-    fetchCredits();
+    fetchData();
   }, []); // Empty dependency array ensures this runs only once
 
   // Handle transaction type selection based on toggles
@@ -168,34 +204,6 @@ const TransactionFormFields: React.FC<TransactionFormFieldsProps> = ({
             </div>
           </div>
         </div>
-
-        {/* Recurring Payment Selector - Only show when recurring is selected */}
-        {isRecurring && (
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Select Existing Recurring Payment</label>
-            <RecurringPaymentSelector
-              value={selectedRecurringPaymentId}
-              onChange={setSelectedRecurringPaymentId}
-              onRecurringPaymentSelect={(payment) => {
-                // Auto-fill form fields based on selected recurring payment
-                if (payment) {
-                  setRecurringName(payment.name);
-                  if (payment.counterparty) setCounterparty(payment.counterparty);
-                  // Pass complete payment object to parent component for additional field updates
-                  const fullPayment = {
-                    ...payment,
-                    defaultAmount: payment.defaultAmount || payment.amount || 0,
-                    frequency: payment.frequency?.toLowerCase() || 'monthly'
-                  };
-                  onRecurringPaymentSelect(fullPayment);
-                }
-              }}
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              Select an existing recurring payment or create a new one
-            </p>
-          </div>
-        )}
 
         {!isTransfer && (
           <div className="space-y-2">
@@ -287,16 +295,65 @@ const TransactionFormFields: React.FC<TransactionFormFieldsProps> = ({
         )}
 
         {isRecurring && (
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Recurring Payment Name</label>
-            <Input
-              value={recurringName}
-              onChange={(e) => setRecurringName(e.target.value)}
-              placeholder="Netflix, Rent, Salary, etc."
-              className="bg-background/50 border-border/50 focus:border-primary/50 focus:ring-primary/20"
-              required={isRecurring}
-            />
-          </div>
+          <>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Select Existing Payment</label>
+              <RecurringPaymentSelector
+                value={selectedRecurringPaymentId}
+                onChange={setSelectedRecurringPaymentId}
+                onPaymentSelected={(payment) => {
+                  // Auto-fill form fields based on selected recurring payment
+                  setRecurringName(payment.name);
+                  setAmount(payment.amount.toString());
+                  setCounterparty(payment.counterparty || "");
+                  setDescription(payment.description || "");
+                  setSelectedAccount(payment.accountId);
+                  setCategory(payment.categoryId || "");
+                  setRecurringFrequency(payment.frequency.toLowerCase());
+                  if (payment.customIntervalDays) {
+                    setCustomIntervalDays(payment.customIntervalDays.toString());
+                  }
+                }}
+              />
+              <p className="text-xs text-muted-foreground">
+                Select an existing recurring payment or create a new one
+              </p>
+            </div>
+            
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Recurring Payment Name</label>
+              <Input
+                value={recurringName}
+                onChange={(e) => setRecurringName(e.target.value)}
+                placeholder="Netflix, Rent, Salary, etc."
+                className="bg-background/50 border-border/50 focus:border-primary/50 focus:ring-primary/20"
+                required={isRecurring}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Frequency</label>
+              <PaymentTypeSelector
+                value={recurringFrequency}
+                onChange={setRecurringFrequency}
+                options={frequencyOptions}
+              />
+            </div>
+            
+            {recurringFrequency === "custom" && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Custom Interval (Days)</label>
+                <Input
+                  type="number"
+                  value={customIntervalDays}
+                  onChange={(e) => setCustomIntervalDays(e.target.value)}
+                  placeholder="Enter number of days (e.g., 84)"
+                  className="bg-background/50 border-border/50 focus:border-primary/50 focus:ring-primary/20"
+                  required={recurringFrequency === "custom"}
+                />
+              </div>
+            )}
+          </>
         )}
         
         {!isTransfer && (
@@ -315,4 +372,4 @@ const TransactionFormFields: React.FC<TransactionFormFieldsProps> = ({
   );
 };
 
-export default TransactionFormFields;
+export default EnhancedTransactionFormFields;

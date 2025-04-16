@@ -87,7 +87,8 @@ export async function POST(request: NextRequest) {
           creditId: credit.id,
           isRepayment: true,
           isFullSettlement: !!data.isFullSettlement,
-          categoryId: data.categoryId
+          categoryId: data.categoryId,
+          direction: credit.type === "lent" ? "received" : "sent", // Direction is opposite of original credit
         }
       });
       

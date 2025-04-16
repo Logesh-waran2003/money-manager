@@ -23,6 +23,7 @@ import {
   X,
   ArrowLeftRight,
   ArrowRight,
+  Repeat,
 } from "lucide-react";
 import { useState } from "react";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -57,6 +58,11 @@ const Navbar = () => {
       href: "/transfers",
       label: "Transfers",
       icon: <ArrowLeftRight className="h-4 w-4 mr-2" />,
+    },
+    {
+      href: "/recurring-payments",
+      label: "Recurring",
+      icon: <Repeat className="h-4 w-4 mr-2" />,
     },
   ];
 

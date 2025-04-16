@@ -175,6 +175,7 @@ export async function POST(request: NextRequest) {
           categoryId: data.categoryId,
           appUsed: data.appUsed,
           notes: data.notes,
+          direction: data.creditType === "lent" ? "sent" : "received", // Set direction based on credit type
         }
       });
       

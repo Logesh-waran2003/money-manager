@@ -21,7 +21,9 @@ import AccountSelector from "@/components/account-selector";
 import CategorySelector from "@/components/category-selector";
 import TransactionFormFields from "@/components/transaction-form-fields";
 import PaymentTypeSelector from "@/components/payment-type-selector";
+import RecurringPaymentSelector from "@/components/recurring-payment-selector";
 import { cn } from "@/lib/utils";
+import { calculateNextDueDate, getFrequencyOptions } from "@/lib/utils/recurring-payment-utils";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTransactionStore } from "@/lib/stores/transaction-store";
@@ -32,6 +34,8 @@ export default function TransactionForm() {
   const { addTransaction } = useTransactionStore();
   const [isLoading, setIsLoading] = useState(false);
 
+  // State for recurring payment selection
+  const [selectedRecurringPaymentId, setSelectedRecurringPaymentId] = useState("");
   // Check URL parameters for transaction type
   const [searchParams, setSearchParams] = useState<URLSearchParams | null>(
     null
@@ -68,6 +72,15 @@ export default function TransactionForm() {
       } else if (type === "transfer") {
         setIsTransfer(true);
         setTransactionType("transfer");
+      } else if (type === "recurring") {
+        setIsRecurring(true);
+        setTransactionType("recurring");
+        
+        // Set recurring payment ID if provided
+        const recurringPaymentId = searchParams.get("recurringPaymentId");
+        if (recurringPaymentId) {
+          setSelectedRecurringPaymentId(recurringPaymentId);
+        }
       }
       
       // Set credit type
@@ -114,7 +127,11 @@ export default function TransactionForm() {
       
       // Set account ID
       const accountId = searchParams.get("accountId");
-      if (accountId) {
+      // Set category ID
+      const categoryId = searchParams.get("categoryId");
+      if (categoryId) {
+        setCategory(categoryId);
+      }      if (accountId) {
         setSelectedAccount(accountId);
       }
     }
@@ -139,6 +156,7 @@ export default function TransactionForm() {
   const [transactionType, setTransactionType] = useState("regular");
   const [recurringName, setRecurringName] = useState("");
   const [recurringFrequency, setRecurringFrequency] = useState("monthly");
+  const [customIntervalDays, setCustomIntervalDays] = useState<number | undefined>(undefined);
   const [creditType, setCreditType] = useState("lent");
   const [creditDueDate, setCreditDueDate] = useState<Date | undefined>(
     new Date()
@@ -269,7 +287,18 @@ export default function TransactionForm() {
     let apiTransactionType = transactionType;
     if (transactionType === "regular") {
       apiTransactionType = direction === "received" ? "income" : "expense";
+    } else if (transactionType === "recurring") {
+      // For recurring payments, we need to specify if it's an income or expense
+      apiTransactionType = "recurring";
     }
+    
+    // For all transaction types, ensure direction is set
+    // This makes the direction field consistent across all transaction types
+    const transactionDirection = direction || 
+      (apiTransactionType === "income" ? "received" : 
+       apiTransactionType === "expense" ? "sent" : 
+       apiTransactionType === "credit" ? (creditType === "lent" ? "sent" : "received") : 
+       "sent"); // Default to sent for transfers
 
     // Create transaction object for API
     const transactionData = {
@@ -286,7 +315,9 @@ export default function TransactionForm() {
       dueDate: isCredit ? creditDueDate?.toISOString() : undefined,
       recurring: isRecurring,
       recurringFrequency: isRecurring ? recurringFrequency : undefined,
-      recurringName: isRecurring ? recurringName : undefined,
+      recurringPaymentId: isRecurring && selectedRecurringPaymentId ? selectedRecurringPaymentId : undefined,
+      customIntervalDays: isRecurring && recurringFrequency === 'custom' ? customIntervalDays : undefined,
+      direction: transactionDirection, // Use the consistent direction value
       // Add repayment fields if applicable
       creditId: isCredit && isRepayment ? selectedCreditId : undefined,
       isRepayment: isCredit ? isRepayment : undefined,
@@ -348,7 +379,32 @@ export default function TransactionForm() {
           }
         }
       } else if (transactionType === "recurring") {
-        message = `Added recurring payment "${recurringName}" of $${amount} (${recurringFrequency})`;
+        message = `Added transaction for recurring payment "${recurringName}" of $${amount}`;
+        
+      // Update the next due date for the recurring payment if one was selected
+      if (isRecurring && selectedRecurringPaymentId) {
+        try {
+          // Call the API to update the next due date
+          const response = await fetch(`/api/recurring-payments/mark-complete`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              recurringPaymentId: selectedRecurringPaymentId,
+              transactionDate: date?.toISOString() || new Date().toISOString(),
+            }),
+          });
+          
+          if (!response.ok) {
+            console.error("Failed to update recurring payment next due date");
+          } else {
+            message += " and updated next due date";
+          }
+        } catch (error) {
+          console.error("Error updating next due date:", error);
+        }
+      }
       } else if (transactionType === "transfer") {
         message = `Transferred $${amount} between accounts`;
       }
@@ -428,6 +484,19 @@ export default function TransactionForm() {
             setIsRepayment={setIsRepayment}
             selectedCreditId={selectedCreditId}
             setSelectedCreditId={setSelectedCreditId}
+            selectedRecurringPaymentId={selectedRecurringPaymentId}
+            setSelectedRecurringPaymentId={setSelectedRecurringPaymentId}
+            onRecurringPaymentSelect={(payment) => {
+              // Auto-fill form fields based on selected recurring payment
+              if (payment) {
+                setAmount((payment.defaultAmount || payment.amount || 0).toString());
+                setRecurringFrequency(payment.frequency?.toLowerCase() || 'monthly');
+                setCustomIntervalDays(payment.customIntervalDays || undefined);
+                if (payment.accountId) setSelectedAccount(payment.accountId);
+                if (payment.categoryId) setCategory(payment.categoryId);
+                if (payment.description) setDescription(payment.description);
+              }
+            }}
           />
 
           {/* Transaction amount and date - common for all transaction types */}
@@ -490,20 +559,40 @@ export default function TransactionForm() {
 
           {/* Transaction type specific additional fields */}
           {isRecurring && (
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Frequency</label>
-              <PaymentTypeSelector
-                value={recurringFrequency}
-                onChange={setRecurringFrequency}
-                options={[
-                  { value: "daily", label: "Daily" },
-                  { value: "weekly", label: "Weekly" },
-                  { value: "monthly", label: "Monthly" },
-                  { value: "quarterly", label: "Quarterly" },
-                  { value: "yearly", label: "Yearly" },
-                ]}
-              />
-            </div>
+            <>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Recurring Payment Name</label>
+                <Input
+                  value={recurringName}
+                  onChange={(e) => setRecurringName(e.target.value)}
+                  placeholder="e.g., Netflix Subscription"
+                  required={isRecurring}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Frequency</label>
+                <PaymentTypeSelector
+                  value={recurringFrequency}
+                  onChange={setRecurringFrequency}
+                  options={getFrequencyOptions()}
+                />
+              </div>
+
+              {recurringFrequency === 'custom' && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Custom Interval (Days)</label>
+                  <Input
+                    type="number"
+                    value={customIntervalDays || ''}
+                    onChange={(e) => setCustomIntervalDays(parseInt(e.target.value) || undefined)}
+                    placeholder="Enter number of days"
+                    min="1"
+                    required={recurringFrequency === 'custom'}
+                  />
+                </div>
+              )}
+            </>
           )}
 
           {isCredit && (

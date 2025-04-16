@@ -95,8 +95,74 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Update account balances based on transaction type and account type
-    if (data.type === 'expense') {
+    // Update next due date for recurring payment if applicable
+    if (data.recurring && data.recurringPaymentId) {
+      try {
+        const recurringPayment = await prisma.recurringPayment.findUnique({
+          where: { id: data.recurringPaymentId }
+        });
+        
+        if (recurringPayment) {
+          // Calculate next due date based on frequency
+          let nextDueDate = new Date(recurringPayment.nextDueDate);
+          
+          switch (recurringPayment.frequency.toLowerCase()) {
+            case 'daily':
+              nextDueDate.setDate(nextDueDate.getDate() + 1);
+              break;
+            case 'weekly':
+              nextDueDate.setDate(nextDueDate.getDate() + 7);
+              break;
+            case 'monthly':
+              nextDueDate.setMonth(nextDueDate.getMonth() + 1);
+              break;
+            case 'quarterly':
+              nextDueDate.setMonth(nextDueDate.getMonth() + 3);
+              break;
+            case 'yearly':
+              nextDueDate.setFullYear(nextDueDate.getFullYear() + 1);
+              break;
+            case 'custom':
+              if (recurringPayment.customIntervalDays) {
+                nextDueDate.setDate(nextDueDate.getDate() + recurringPayment.customIntervalDays);
+              } else {
+                // Default to monthly if custom days is invalid
+                nextDueDate.setMonth(nextDueDate.getMonth() + 1);
+              }
+              break;
+            default:
+              // Default to monthly for unknown frequency
+              nextDueDate.setMonth(nextDueDate.getMonth() + 1);
+          }
+          
+          // Update the recurring payment with the new due date
+          await prisma.recurringPayment.update({
+            where: { id: data.recurringPaymentId },
+            data: { nextDueDate }
+          });
+        }
+      } catch (error) {
+        console.error("Error updating recurring payment next due date:", error);
+        // Continue with the transaction even if updating the recurring payment fails
+      }
+    }
+
+    // Set direction for transaction types that don't have it explicitly set
+    if (!data.direction) {
+      if (data.type === 'expense') {
+        data.direction = 'sent';
+      } else if (data.type === 'income') {
+        data.direction = 'received';
+      } else if (data.type === 'credit') {
+        data.direction = data.creditType === 'lent' ? 'sent' : 'received';
+      } else if (data.type === 'transfer') {
+        data.direction = 'sent'; // For transfers, direction is always from source account
+      }
+    }
+
+    // Update account balances based on direction and account type
+    if (data.direction !== 'received') {
+      // For money going out (sent)
       // For credit cards, spending money increases the balance (debt)
       if (account.type === 'credit') {
         await prisma.account.update({
@@ -110,7 +176,8 @@ export async function POST(request: NextRequest) {
           data: { balance: { decrement: data.amount } },
         });
       }
-    } else if (data.type === 'income') {
+    } else {
+      // For money coming in (received)
       // For credit cards, receiving money (payment) decreases the balance (debt)
       if (account.type === 'credit') {
         await prisma.account.update({
@@ -124,7 +191,8 @@ export async function POST(request: NextRequest) {
           data: { balance: { increment: data.amount } },
         });
       }
-    } else if (data.type === 'transfer' && data.toAccountId) {
+    // Handle special case for transfers between credit cards
+    if (data.type === 'transfer' && data.toAccountId) {
       const toAccount = await prisma.account.findUnique({
         where: { id: data.toAccountId },
       });
@@ -133,62 +201,33 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Destination account not found' }, { status: 404 });
       }
 
-      // Handle transfers based on account types
+      // For transfers between credit cards, adjust the balance based on account types
       if (account.type === 'credit' && toAccount.type === 'credit') {
         // Credit to credit: source decreases (payment), destination increases (debt)
         await prisma.account.update({
-          where: { id: data.accountId },
-          data: { balance: { decrement: data.amount } },
-        });
-        await prisma.account.update({
           where: { id: data.toAccountId },
           data: { balance: { increment: data.amount } },
         });
-      } else if (account.type === 'credit') {
+      } else if (account.type === 'credit' && toAccount.type !== 'credit') {
         // Credit to regular: source increases (cash advance), destination increases (deposit)
         await prisma.account.update({
-          where: { id: data.accountId },
-          data: { balance: { increment: data.amount } },
-        });
-        await prisma.account.update({
           where: { id: data.toAccountId },
           data: { balance: { increment: data.amount } },
         });
-      } else if (toAccount.type === 'credit') {
+      } else if (account.type !== 'credit' && toAccount.type === 'credit') {
         // Regular to credit: source decreases (withdrawal), destination decreases (payment)
-        await prisma.account.update({
-          where: { id: data.accountId },
-          data: { balance: { decrement: data.amount } },
-        });
         await prisma.account.update({
           where: { id: data.toAccountId },
           data: { balance: { decrement: data.amount } },
         });
       } else {
-        // Regular to regular: source decreases, destination increases
-        await prisma.account.update({
-          where: { id: data.accountId },
-          data: { balance: { decrement: data.amount } },
-        });
+        // Regular to regular: destination increases
         await prisma.account.update({
           where: { id: data.toAccountId },
           data: { balance: { increment: data.amount } },
         });
       }
-    } else if (data.type === 'credit') {
-      if (data.creditType === 'borrowed') {
-        // For borrowing money, increase the balance (positive amount)
-        await prisma.account.update({
-          where: { id: data.accountId },
-          data: { balance: { increment: data.amount } },
-        });
-      } else if (data.creditType === 'lent') {
-        // For lending money, decrease the balance (negative amount)
-        await prisma.account.update({
-          where: { id: data.accountId },
-          data: { balance: { decrement: data.amount } },
-        });
-      }
+    }
     }
 
     return NextResponse.json(transaction);
@@ -197,3 +236,40 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to create transaction' }, { status: 500 });
   }
 }
+    // For transfers, handle the special case of transfers between credit cards
+    if (data.type === 'transfer' && data.toAccountId) {
+      const toAccount = await prisma.account.findUnique({
+        where: { id: data.toAccountId },
+      });
+
+      if (!toAccount) {
+        return NextResponse.json({ error: 'Destination account not found' }, { status: 404 });
+      }
+
+      // For transfers between credit cards, adjust the balance based on account types
+      if (account.type === 'credit' && toAccount.type === 'credit') {
+        // Credit to credit: source decreases (payment), destination increases (debt)
+        await prisma.account.update({
+          where: { id: data.toAccountId },
+          data: { balance: { increment: data.amount } },
+        });
+      } else if (account.type === 'credit' && toAccount.type !== 'credit') {
+        // Credit to regular: source increases (cash advance), destination increases (deposit)
+        await prisma.account.update({
+          where: { id: data.toAccountId },
+          data: { balance: { increment: data.amount } },
+        });
+      } else if (account.type !== 'credit' && toAccount.type === 'credit') {
+        // Regular to credit: source decreases (withdrawal), destination decreases (payment)
+        await prisma.account.update({
+          where: { id: data.toAccountId },
+          data: { balance: { decrement: data.amount } },
+        });
+      } else {
+        // Regular to regular: destination increases
+        await prisma.account.update({
+          where: { id: data.toAccountId },
+          data: { balance: { increment: data.amount } },
+        });
+      }
+    }

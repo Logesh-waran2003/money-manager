@@ -23,6 +23,8 @@ export interface Transaction {
   isRepayment?: boolean;
   isFullSettlement?: boolean;
   creditId?: string;
+  // Direction field for transaction flow
+  direction?: string;
 }
 
 interface TransactionFilters {
