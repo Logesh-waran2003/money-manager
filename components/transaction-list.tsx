@@ -6,9 +6,23 @@ import { formatCurrency } from "@/lib/utils/currency";
 import { useRouter } from "next/navigation";
 
 // Function to determine the sign of the amount based on transaction type
-export const getAmountWithSign = (transaction) => {
+export interface Transaction {
+  id: string;
+  amount: number;
+  type: "credit" | "expense" | string;
+  creditType?: "lent" | "borrowed" | string;
+  description?: string;
+  date?: string;
+  category?: { name?: string };
+  counterparty?: string;
+  account?: { name?: string };
+  accountId?: string;
+  toAccountId?: string;
+}
+
+export const getAmountWithSign = (transaction: Transaction): number => {
   const { type, creditType, amount } = transaction;
-  
+
   // For credit transactions
   if (type === "credit") {
     // Lent money should be negative (money going out)
@@ -20,12 +34,12 @@ export const getAmountWithSign = (transaction) => {
       return Math.abs(amount);
     }
   }
-  
+
   // For other transaction types, use the existing logic
   if (type === "expense") {
     return -Math.abs(amount);
   }
-  
+
   return amount;
 };
 
@@ -36,17 +50,21 @@ export interface TransactionListProps {
   onTransactionClick?: (transaction: any) => void;
 }
 
-export function TransactionList({ 
-  transactions, 
+export function TransactionList({
+  transactions,
   showAccount = true,
   currentAccountId,
-  onTransactionClick 
+  onTransactionClick,
 }: TransactionListProps) {
   const router = useRouter();
 
-  const handleTransactionClick = (transaction) => {
+  interface HandleTransactionClick {
+    (transaction: Transaction): void;
+  }
+
+  const handleTransactionClick: HandleTransactionClick = (transaction) => {
     if (onTransactionClick) {
-      onTransactionClick(transaction);
+      onTransactionClick(transaction.id);
     } else {
       router.push(`/transactions/${transaction.id}`);
     }
@@ -62,23 +80,37 @@ export function TransactionList({
 
   return (
     <div className="space-y-2">
-      {transactions.map((transaction) => (
-        <TransactionCard
-          key={transaction.id}
-          id={transaction.id}
-          amount={transaction.amount}
-          description={transaction.description || ""}
-          date={transaction.date}
-          type={transaction.type}
-          category={transaction.category?.name || "other"}
-          counterparty={transaction.counterparty || ""}
-          accountName={showAccount ? transaction.account?.name : undefined}
-          accountId={transaction.accountId}
-          toAccountId={transaction.toAccountId}
-          onClick={() => handleTransactionClick(transaction)}
-          showInAccount={!!currentAccountId}
-        />
-      ))}
+      {transactions.map((transaction) => {
+        const isTemp = transaction.id.startsWith("temp-");
+        return (
+          <div
+            key={transaction.id}
+            className={isTemp ? "opacity-60 pointer-events-none" : ""}
+          >
+            <TransactionCard
+              id={transaction.id}
+              amount={transaction.amount}
+              description={transaction.description || ""}
+              date={transaction.date}
+              type={transaction.type}
+              category={transaction.category?.name || "other"}
+              counterparty={transaction.counterparty || ""}
+              accountName={showAccount ? transaction.account?.name : undefined}
+              accountId={transaction.accountId}
+              toAccountId={transaction.toAccountId}
+              onClick={
+                isTemp ? undefined : () => handleTransactionClick(transaction)
+              }
+              showInAccount={!!currentAccountId}
+            />
+            {isTemp && (
+              <div className="text-xs text-muted-foreground ml-4">
+                Saving...
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

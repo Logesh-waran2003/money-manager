@@ -164,13 +164,15 @@ export const useTransactionStore = create<TransactionStore>()(
           set({ isLoading: true, error: null });
           try {
             const response = await fetch('/api/transactions');
-            
             if (!response.ok) {
               throw new Error('Failed to fetch transactions');
             }
-            
             const data = await response.json();
-            set({ transactions: data, isLoading: false });
+            // Remove any lingering temp transactions
+            set({
+              transactions: data.filter((t: { id: string }) => !t.id.startsWith('temp-')),
+              isLoading: false
+            });
           } catch (error) {
             console.error('Error fetching transactions:', error);
             set({ 
@@ -231,13 +233,26 @@ export const useTransactionStore = create<TransactionStore>()(
             // For credit transactions, the response includes both credit and transaction
             const actualTransaction = savedTransaction.transaction || savedTransaction;
             
-            // Replace the optimistic transaction with the saved one
-            set((state) => ({
-              transactions: state.transactions.map((t) => 
-                t.id === transaction.id ? actualTransaction : t
-              ),
-            }));
+            console.log('Transaction saved with ID:', actualTransaction.id, 'replacing temp ID:', transaction.id);
             
+            // Replace the optimistic transaction with the saved one
+            set((state) => {
+              // First check if we need to replace the temporary transaction
+              const needsReplacement = state.transactions.some(t => t.id === transaction.id);
+              
+              if (needsReplacement) {
+                return {
+                  transactions: state.transactions.map((t) => 
+                    t.id === transaction.id ? actualTransaction : t
+                  ).filter(t => t !== null),
+                };
+              } else {
+                // If we can't find the temp transaction, just add the new one
+                return {
+                  transactions: [...state.transactions, actualTransaction].filter(t => t !== null),
+                };
+              }
+            });
             return actualTransaction;
           } catch (error) {
             console.error('Error saving transaction:', error);

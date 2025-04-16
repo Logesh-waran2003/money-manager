@@ -191,6 +191,8 @@ export async function POST(request: NextRequest) {
           data: { balance: { increment: data.amount } },
         });
       }
+    }
+    
     // Handle special case for transfers between credit cards
     if (data.type === 'transfer' && data.toAccountId) {
       const toAccount = await prisma.account.findUnique({
@@ -228,7 +230,6 @@ export async function POST(request: NextRequest) {
         });
       }
     }
-    }
 
     return NextResponse.json(transaction);
   } catch (error) {
@@ -236,40 +237,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to create transaction' }, { status: 500 });
   }
 }
-    // For transfers, handle the special case of transfers between credit cards
-    if (data.type === 'transfer' && data.toAccountId) {
-      const toAccount = await prisma.account.findUnique({
-        where: { id: data.toAccountId },
-      });
-
-      if (!toAccount) {
-        return NextResponse.json({ error: 'Destination account not found' }, { status: 404 });
-      }
-
-      // For transfers between credit cards, adjust the balance based on account types
-      if (account.type === 'credit' && toAccount.type === 'credit') {
-        // Credit to credit: source decreases (payment), destination increases (debt)
-        await prisma.account.update({
-          where: { id: data.toAccountId },
-          data: { balance: { increment: data.amount } },
-        });
-      } else if (account.type === 'credit' && toAccount.type !== 'credit') {
-        // Credit to regular: source increases (cash advance), destination increases (deposit)
-        await prisma.account.update({
-          where: { id: data.toAccountId },
-          data: { balance: { increment: data.amount } },
-        });
-      } else if (account.type !== 'credit' && toAccount.type === 'credit') {
-        // Regular to credit: source decreases (withdrawal), destination decreases (payment)
-        await prisma.account.update({
-          where: { id: data.toAccountId },
-          data: { balance: { decrement: data.amount } },
-        });
-      } else {
-        // Regular to regular: destination increases
-        await prisma.account.update({
-          where: { id: data.toAccountId },
-          data: { balance: { increment: data.amount } },
-        });
-      }
-    }

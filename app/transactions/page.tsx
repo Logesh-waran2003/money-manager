@@ -101,6 +101,7 @@ export default function TransactionsPage() {
 
   // Handle transaction click
   const handleTransactionClick = (id: string) => {
+    console.log("Navigating to transaction:", id);
     router.push(`/transactions/${id}`);
   };
 

@@ -341,22 +341,45 @@ export default function TransactionForm() {
         });
       } else {
         // Use the transaction store for regular transactions
-        await addTransaction({
-          id: `temp-${Date.now()}`,
-          ...transactionData,
-          type: transactionData.type as
-            | "income"
-            | "expense"
-            | "transfer"
-            | "credit",
-          creditType: isCredit ? creditType : undefined,
-          dueDate: isCredit ? creditDueDate?.toISOString() : undefined,
-          isRepayment: isCredit ? isRepayment : undefined,
-          creditId: isCredit && isRepayment ? selectedCreditId : undefined,
-          isFullSettlement: isCredit && isRepayment ? isFullSettlement : undefined,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        });
+        try {
+          const savedTransaction = await addTransaction({
+            id: `temp-${Date.now()}`,
+            ...transactionData,
+            type: transactionData.type as
+              | "income"
+              | "expense"
+              | "transfer"
+              | "credit"
+              | "recurring",
+            creditType: isCredit ? creditType : undefined,
+            dueDate: isCredit ? creditDueDate?.toISOString() : undefined,
+            isRepayment: isCredit ? isRepayment : undefined,
+            creditId: isCredit && isRepayment ? selectedCreditId : undefined,
+            isFullSettlement: isCredit && isRepayment ? isFullSettlement : undefined,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          });
+          
+          console.log("Transaction saved successfully:", savedTransaction);
+          
+          // Navigate directly to the transaction detail page using the server-generated ID
+          if (savedTransaction && savedTransaction.id) {
+            // Add a small delay to ensure the store is updated
+            toast({
+              title: "Transaction Saved",
+              description: message,
+            });
+            
+            console.log("Navigating to transaction detail:", savedTransaction.id);
+            
+            // Use window.location for a full page refresh to ensure clean state
+            window.location.href = `/transactions/${savedTransaction.id}`;
+            return; // Exit early since we're redirecting
+          }
+        } catch (error) {
+          console.error("Error saving transaction:", error);
+          throw error; // Re-throw to be caught by the outer try-catch
+        }
       }
 
       // Prepare appropriate message based on transaction type
@@ -409,12 +432,8 @@ export default function TransactionForm() {
         message = `Transferred $${amount} between accounts`;
       }
 
-      toast({
-        title: "Transaction Saved",
-        description: message,
-      });
-
-      // Navigate back to transactions page
+      // We're already showing the toast and navigating in the code above
+      // Only fall back to the transactions list page if we didn't redirect earlier
       router.push("/transactions");
     } catch (error) {
       console.error("Error saving transaction:", error);
