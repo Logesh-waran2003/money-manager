@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
-import { getAuthUser } from '@/lib/auth';
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/db";
+import { betterAuthInstance } from "@/lib/better-auth";
+import { getAuthUser } from "@/lib/auth";
 
 interface Params {
   params: {
@@ -13,7 +14,7 @@ export async function GET(request: NextRequest, { params }: Params) {
   try {
     const user = await getAuthUser(request);
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { id } = params;
@@ -26,7 +27,7 @@ export async function GET(request: NextRequest, { params }: Params) {
       include: {
         transactions: {
           orderBy: {
-            date: 'desc',
+            date: "desc",
           },
         },
       },
@@ -34,7 +35,7 @@ export async function GET(request: NextRequest, { params }: Params) {
 
     if (!recurringPayment) {
       return NextResponse.json(
-        { error: 'Recurring payment not found' },
+        { error: "Recurring payment not found" },
         { status: 404 }
       );
     }
@@ -66,9 +67,9 @@ export async function GET(request: NextRequest, { params }: Params) {
       categoryName,
     });
   } catch (error) {
-    console.error('Error fetching recurring payment:', error);
+    console.error("Error fetching recurring payment:", error);
     return NextResponse.json(
-      { error: 'Failed to fetch recurring payment' },
+      { error: "Failed to fetch recurring payment" },
       { status: 500 }
     );
   }
@@ -79,7 +80,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
   try {
     const user = await getAuthUser(request);
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { id } = params;
@@ -95,7 +96,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
 
     if (!existingPayment) {
       return NextResponse.json(
-        { error: 'Recurring payment not found' },
+        { error: "Recurring payment not found" },
         { status: 404 }
       );
     }
@@ -103,37 +104,45 @@ export async function PUT(request: NextRequest, { params }: Params) {
     // Validate amount if provided
     if (data.amount !== undefined && data.amount <= 0) {
       return NextResponse.json(
-        { error: 'Amount must be greater than zero' },
+        { error: "Amount must be greater than zero" },
         { status: 400 }
       );
     }
 
     // Validate custom interval days if frequency is custom
     if (
-      data.frequency?.toLowerCase() === 'custom' &&
+      data.frequency?.toLowerCase() === "custom" &&
       (!data.customIntervalDays || data.customIntervalDays <= 0)
     ) {
       return NextResponse.json(
-        { error: 'Custom interval days must be provided and greater than zero' },
+        {
+          error: "Custom interval days must be provided and greater than zero",
+        },
         { status: 400 }
       );
     }
 
     // Prepare data for update
     const updateData: any = {};
-    
+
     // Only include fields that are provided in the request
     if (data.name !== undefined) updateData.name = data.name;
     if (data.amount !== undefined) updateData.defaultAmount = data.amount; // Map amount to defaultAmount
     if (data.frequency !== undefined) updateData.frequency = data.frequency;
-    if (data.customIntervalDays !== undefined) updateData.customIntervalDays = data.customIntervalDays;
-    if (data.startDate !== undefined) updateData.startDate = new Date(data.startDate);
-    if (data.endDate !== undefined) updateData.endDate = data.endDate ? new Date(data.endDate) : null;
-    if (data.nextDueDate !== undefined) updateData.nextDueDate = new Date(data.nextDueDate);
+    if (data.customIntervalDays !== undefined)
+      updateData.customIntervalDays = data.customIntervalDays;
+    if (data.startDate !== undefined)
+      updateData.startDate = new Date(data.startDate);
+    if (data.endDate !== undefined)
+      updateData.endDate = data.endDate ? new Date(data.endDate) : null;
+    if (data.nextDueDate !== undefined)
+      updateData.nextDueDate = new Date(data.nextDueDate);
     if (data.accountId !== undefined) updateData.accountId = data.accountId;
     if (data.categoryId !== undefined) updateData.categoryId = data.categoryId;
-    if (data.counterparty !== undefined) updateData.counterparty = data.counterparty;
-    if (data.description !== undefined) updateData.description = data.description;
+    if (data.counterparty !== undefined)
+      updateData.counterparty = data.counterparty;
+    if (data.description !== undefined)
+      updateData.description = data.description;
     if (data.direction !== undefined) updateData.direction = data.direction;
     if (data.isActive !== undefined) updateData.isActive = data.isActive;
 
@@ -145,9 +154,9 @@ export async function PUT(request: NextRequest, { params }: Params) {
 
     return NextResponse.json(updatedPayment);
   } catch (error) {
-    console.error('Error updating recurring payment:', error);
+    console.error("Error updating recurring payment:", error);
     return NextResponse.json(
-      { error: 'Failed to update recurring payment' },
+      { error: "Failed to update recurring payment" },
       { status: 500 }
     );
   }
@@ -158,7 +167,7 @@ export async function DELETE(request: NextRequest, { params }: Params) {
   try {
     const user = await getAuthUser(request);
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { id } = params;
@@ -173,7 +182,7 @@ export async function DELETE(request: NextRequest, { params }: Params) {
 
     if (!existingPayment) {
       return NextResponse.json(
-        { error: 'Recurring payment not found' },
+        { error: "Recurring payment not found" },
         { status: 404 }
       );
     }
@@ -185,9 +194,9 @@ export async function DELETE(request: NextRequest, { params }: Params) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error deleting recurring payment:', error);
+    console.error("Error deleting recurring payment:", error);
     return NextResponse.json(
-      { error: 'Failed to delete recurring payment' },
+      { error: "Failed to delete recurring payment" },
       { status: 500 }
     );
   }

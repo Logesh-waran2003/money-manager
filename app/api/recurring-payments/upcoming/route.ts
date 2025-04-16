@@ -1,18 +1,19 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
-import { getAuthUser } from '@/lib/auth';
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/db";
+import { betterAuthInstance } from "@/lib/better-auth";
+import { getAuthUser } from "@/lib/auth";
 
 // GET upcoming recurring payments for the authenticated user
 export async function GET(request: NextRequest) {
   try {
     const user = await getAuthUser(request);
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // Get query parameters
     const searchParams = request.nextUrl.searchParams;
-    const daysParam = searchParams.get('days');
+    const daysParam = searchParams.get("days");
     const days = daysParam ? parseInt(daysParam, 10) : 7; // Default to 7 days
 
     // Calculate the date range
@@ -31,12 +32,12 @@ export async function GET(request: NextRequest) {
         },
       },
       orderBy: {
-        nextDueDate: 'asc',
+        nextDueDate: "asc",
       },
       include: {
         transactions: {
           orderBy: {
-            date: 'desc',
+            date: "desc",
           },
           take: 1,
         },
@@ -81,9 +82,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(transformedPayments);
   } catch (error) {
-    console.error('Error fetching upcoming recurring payments:', error);
+    console.error("Error fetching upcoming recurring payments:", error);
     return NextResponse.json(
-      { error: 'Failed to fetch upcoming recurring payments' },
+      { error: "Failed to fetch upcoming recurring payments" },
       { status: 500 }
     );
   }

@@ -41,8 +41,6 @@ JWT_SECRET=your_secure_random_string
 JWT_EXPIRES_IN=7d
 NEXTAUTH_SECRET=your_secure_random_string
 NEXTAUTH_URL=https://your-app-name.vercel.app
-MOCK_AUTH=true
-NEXT_PUBLIC_APP_URL=https://your-app-name.vercel.app
 NODE_ENV=production
 ```
 

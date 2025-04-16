@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
-import { getAuthUser } from '@/lib/auth';
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/db";
+import { getAuthUser } from "@/lib/auth";
 
 /**
  * POST /api/recurring-payments/[id]/update-due-date
- * 
+ *
  * Updates the next due date for a recurring payment based on its frequency
  * This endpoint is typically called after a transaction is created for a recurring payment
  */
@@ -15,7 +15,7 @@ export async function POST(
   try {
     const user = await getAuthUser(request);
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // Check if the recurring payment exists
@@ -26,12 +26,15 @@ export async function POST(
     });
 
     if (!recurringPayment) {
-      return NextResponse.json({ error: 'Recurring payment not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: "Recurring payment not found" },
+        { status: 404 }
+      );
     }
 
     // Verify ownership
     if (recurringPayment.userId !== user.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
     // Calculate the next due date based on frequency
@@ -39,24 +42,29 @@ export async function POST(
     let nextDueDate = new Date(currentDueDate);
 
     switch (recurringPayment.frequency.toLowerCase()) {
-      case 'daily':
+      case "daily":
         nextDueDate.setDate(currentDueDate.getDate() + 1);
         break;
-      case 'weekly':
+      case "weekly":
         nextDueDate.setDate(currentDueDate.getDate() + 7);
         break;
-      case 'monthly':
+      case "monthly":
         nextDueDate.setMonth(currentDueDate.getMonth() + 1);
         break;
-      case 'quarterly':
+      case "quarterly":
         nextDueDate.setMonth(currentDueDate.getMonth() + 3);
         break;
-      case 'yearly':
+      case "yearly":
         nextDueDate.setFullYear(currentDueDate.getFullYear() + 1);
         break;
-      case 'custom':
-        if (recurringPayment.customIntervalDays && recurringPayment.customIntervalDays > 0) {
-          nextDueDate.setDate(currentDueDate.getDate() + recurringPayment.customIntervalDays);
+      case "custom":
+        if (
+          recurringPayment.customIntervalDays &&
+          recurringPayment.customIntervalDays > 0
+        ) {
+          nextDueDate.setDate(
+            currentDueDate.getDate() + recurringPayment.customIntervalDays
+          );
         } else {
           // Default to monthly if custom days is invalid
           nextDueDate.setMonth(currentDueDate.getMonth() + 1);
@@ -83,7 +91,10 @@ export async function POST(
 
     return NextResponse.json(updatedPayment);
   } catch (error) {
-    console.error('Error updating recurring payment due date:', error);
-    return NextResponse.json({ error: 'Failed to update recurring payment due date' }, { status: 500 });
+    console.error("Error updating recurring payment due date:", error);
+    return NextResponse.json(
+      { error: "Failed to update recurring payment due date" },
+      { status: 500 }
+    );
   }
 }

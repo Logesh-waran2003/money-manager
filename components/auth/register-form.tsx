@@ -1,13 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuthStore } from "@/lib/stores/useAuthStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
 
@@ -17,33 +24,39 @@ export function RegisterForm() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
-  const { register, isLoading, error, clearError } = useAuthStore();
+  const { register, login, isAuthenticated, isLoading, error, clearError } =
+    useAuthStore();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Clear any previous errors
     setPasswordError("");
     clearError();
-    
+
     // Validate password match
     if (password !== confirmPassword) {
       setPasswordError("Passwords do not match");
       return;
     }
-    
+
     // Validate password strength
     if (password.length < 8) {
       setPasswordError("Password must be at least 8 characters long");
       return;
     }
-    
+
     await register(name, email, password);
-    
-    // If registration was successful (no error), redirect to dashboard
+
+    // If registration was successful (no error), auto-login and redirect
     if (!useAuthStore.getState().error) {
-      router.push("/dashboard");
+      await login(email, password);
+      if (!useAuthStore.getState().error) {
+        router.push(callbackUrl);
+      }
     }
   };
 

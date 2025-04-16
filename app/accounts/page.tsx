@@ -29,18 +29,17 @@ export default function AccountsPage() {
   const { accounts, isLoading, error, fetchAccounts } = useAccountStore();
 
   // Fetch accounts on component mount
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        await fetchAccounts();
-      } catch (error) {
-        console.error("Error fetching accounts:", error);
-      }
-    };
-    console.log("Inside useEffect Accounts:", accounts);
+  // useEffect(() => {
+  //   const fetchData = async () => {
+  //     try {
+  //       await fetchAccounts();
+  //     } catch (error) {
+  //       console.error("Error fetching accounts:", error);
+  //     }
+  //   };
 
-    fetchData();
-  }, [fetchAccounts]);
+  //   fetchData();
+  // }, [fetchAccounts]);
 
   console.log("Accounts:", accounts);
   const getAccountIcon = (type: string) => {

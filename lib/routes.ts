@@ -5,35 +5,41 @@
 
 // Routes that don't require authentication
 export const publicRoutes = [
-  '/login',
-  '/register',
-  '/forgot-password',
-  '/reset-password',
+  "/", // Landing page is public
+  "/login",
+  "/register",
+  "/forgot-password",
+  "/reset-password",
 ];
 
 // Routes that require authentication
 export const protectedRoutes = [
-  '/dashboard',
-  '/accounts',
-  '/accounts/new',
-  '/transactions',
-  '/transactions/new',
-  '/categories',
-  '/settings',
-  '/profile',
+  "/dashboard",
+  "/accounts",
+  "/accounts/new",
+  "/accounts/[id]",
+  "/transactions",
+  "/transactions/new",
+  "/transactions/[id]",
+  "/credits",
+  "/recurring-payments",
+  "/recurring-payments/new",
+  "/recurring-payments/[id]",
+  "/transfers",
+  "/settings",
 ];
 
 // Routes that should redirect authenticated users to dashboard
 export const authRoutes = [
-  '/login',
-  '/register',
-  '/forgot-password',
-  '/reset-password',
+  "/login",
+  "/register",
+  "/forgot-password",
+  "/reset-password",
+  "/", // Optionally, redirect from landing page if already authenticated
 ];
 
-// Default redirect paths
-export const DEFAULT_LOGIN_REDIRECT = '/dashboard';
-export const DEFAULT_LOGOUT_REDIRECT = '/login';
+export const DEFAULT_LOGIN_REDIRECT = "/dashboard";
+export const DEFAULT_LOGOUT_REDIRECT = "/login";
 
 /**
  * Check if a route is public (doesn't require authentication)
@@ -41,10 +47,12 @@ export const DEFAULT_LOGOUT_REDIRECT = '/login';
  * @returns boolean - True if the route is public
  */
 export const isPublicRoute = (pathname: string): boolean => {
-  return publicRoutes.includes(pathname) || 
-         publicRoutes.some(route => 
-           route.endsWith('*') && pathname.startsWith(route.slice(0, -1))
-         );
+  return (
+    publicRoutes.includes(pathname) ||
+    publicRoutes.some(
+      (route) => route.endsWith("*") && pathname.startsWith(route.slice(0, -1))
+    )
+  );
 };
 
 /**
@@ -53,10 +61,10 @@ export const isPublicRoute = (pathname: string): boolean => {
  * @returns boolean - True if the route requires authentication
  */
 export const isProtectedRoute = (pathname: string): boolean => {
-  return protectedRoutes.includes(pathname) || 
-         protectedRoutes.some(route => 
-           pathname.startsWith(route + '/')
-         );
+  return (
+    protectedRoutes.includes(pathname) ||
+    protectedRoutes.some((route) => pathname.startsWith(route + "/"))
+  );
 };
 
 /**

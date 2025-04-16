@@ -1,5 +1,8 @@
-import { create } from 'zustand';
-import { devtools, persist } from 'zustand/middleware';
+// This file is deprecated. All authentication logic now uses useAuthStore.ts.
+// Please use useAuthStore from lib/stores/useAuthStore.ts everywhere in the app.
+
+import { create } from "zustand";
+import { devtools, persist } from "zustand/middleware";
 
 export interface User {
   id: string;
@@ -15,7 +18,7 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
-  
+
   // Actions
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
@@ -37,32 +40,32 @@ export const useAuthStore = create<AuthState>()(
         login: async (email, password) => {
           set({ isLoading: true, error: null });
           try {
-            const response = await fetch('/api/auth/login', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+            const response = await fetch("/api/auth/login", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ email, password }),
             });
 
             if (!response.ok) {
               const errorData = await response.json();
-              throw new Error(errorData.error || 'Login failed');
+              throw new Error(errorData.error || "Login failed");
             }
 
             const data = await response.json();
-            
+
             // Store token in localStorage for API requests
-            localStorage.setItem('token', data.token);
-            
-            set({ 
-              user: data.user, 
-              token: data.token, 
-              isAuthenticated: true, 
-              isLoading: false 
+            localStorage.setItem("token", data.token);
+
+            set({
+              user: data.user,
+              token: data.token,
+              isAuthenticated: true,
+              isLoading: false,
             });
           } catch (error) {
-            set({ 
-              error: error instanceof Error ? error.message : 'Login failed', 
-              isLoading: false 
+            set({
+              error: error instanceof Error ? error.message : "Login failed",
+              isLoading: false,
             });
           }
         },
@@ -70,66 +73,70 @@ export const useAuthStore = create<AuthState>()(
         register: async (name, email, password) => {
           set({ isLoading: true, error: null });
           try {
-            const response = await fetch('/api/auth/register', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+            const response = await fetch("/api/auth/register", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ name, email, password }),
             });
 
             if (!response.ok) {
               const errorData = await response.json();
-              throw new Error(errorData.error || 'Registration failed');
+              throw new Error(errorData.error || "Registration failed");
             }
 
             const data = await response.json();
-            
+
             // Store token in localStorage for API requests
-            localStorage.setItem('token', data.token);
-            
-            set({ 
-              user: data.user, 
-              token: data.token, 
-              isAuthenticated: true, 
-              isLoading: false 
+            localStorage.setItem("token", data.token);
+
+            set({
+              user: data.user,
+              token: data.token,
+              isAuthenticated: true,
+              isLoading: false,
             });
           } catch (error) {
-            set({ 
-              error: error instanceof Error ? error.message : 'Registration failed', 
-              isLoading: false 
+            set({
+              error:
+                error instanceof Error ? error.message : "Registration failed",
+              isLoading: false,
             });
           }
         },
 
         logout: () => {
           // Remove token from localStorage
-          localStorage.removeItem('token');
-          
-          set({ 
-            user: null, 
-            token: null, 
-            isAuthenticated: false 
+          localStorage.removeItem("token");
+
+          set({
+            user: null,
+            token: null,
+            isAuthenticated: false,
           });
         },
 
         resetPassword: async (email) => {
           set({ isLoading: true, error: null });
           try {
-            const response = await fetch('/api/auth/reset-password', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+            const response = await fetch("/api/auth/reset-password", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ email }),
             });
 
             if (!response.ok) {
               const errorData = await response.json();
-              throw new Error(errorData.error || 'Password reset failed');
+              throw new Error(errorData.error || "Password reset failed");
             }
 
             set({ isLoading: false });
           } catch (error) {
-            set({ 
-              error: error instanceof Error ? error.message : 'Password reset failed', 
-              isLoading: false 
+            set({
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "Password reset failed",
+              isLoading: false,
             });
           }
         },
@@ -139,7 +146,7 @@ export const useAuthStore = create<AuthState>()(
         },
       }),
       {
-        name: 'auth-store',
+        name: "auth-store",
       }
     )
   )

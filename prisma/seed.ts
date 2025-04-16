@@ -1,6 +1,11 @@
 import { PrismaClient } from '@prisma/client';
 import { hash } from 'bcrypt';
 
+if (process.env.NODE_ENV !== 'development') {
+  console.error('Seeding is only allowed in development environment!');
+  process.exit(1);
+}
+
 const prisma = new PrismaClient();
 
 async function main() {

@@ -1,19 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { getAuthUser } from "@/lib/auth";
 
 // POST /api/credits/repay - Record a repayment for a credit
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth();
-    
-    if (!session?.user?.id) {
+    const user = await getAuthUser(request);
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    
-    const userId = session.user.id;
+    const userId = user.id;
     const data = await request.json();
-    
+
     // Validate required fields
     if (!data.creditId || !data.accountId || !data.amount) {
       return NextResponse.json(
@@ -21,7 +19,7 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    
+
     // Validate amount is positive
     if (data.amount <= 0) {
       return NextResponse.json(
@@ -29,50 +27,54 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    
+
     // Use a transaction to ensure all operations succeed or fail together
     const result = await prisma.$transaction(async (tx) => {
       // 1. Find the credit record
       const credit = await tx.credit.findFirst({
         where: {
           id: data.creditId,
-          userId
+          userId,
         },
         include: {
           transactions: {
             where: {
-              isRepayment: true
-            }
-          }
-        }
+              isRepayment: true,
+            },
+          },
+        },
       });
-      
+
       if (!credit) {
         throw new Error("Credit not found");
       }
-      
+
       // 2. Check if already fully settled
-      if (credit.isFullySettled || credit.transactions.some(t => t.isFullSettlement)) {
+      if (
+        credit.isFullySettled ||
+        credit.transactions.some((t) => t.isFullSettlement)
+      ) {
         throw new Error("This credit has already been fully settled");
       }
-      
+
       // 3. Calculate current balance
       const totalRepaid = credit.transactions.reduce(
         (sum, repayment) => sum + repayment.amount,
         0
       );
       const currentBalance = credit.amount - totalRepaid;
-      
+
       // 4. Validate repayment amount
       if (data.amount > currentBalance && !data.isFullSettlement) {
         throw new Error("Repayment amount exceeds remaining balance");
       }
-      
+
       // If marked as full settlement but amount is less than balance, use the full balance amount
-      const repaymentAmount = data.isFullSettlement && data.amount < currentBalance 
-        ? currentBalance 
-        : data.amount;
-      
+      const repaymentAmount =
+        data.isFullSettlement && data.amount < currentBalance
+          ? currentBalance
+          : data.amount;
+
       // 5. Create the repayment transaction
       const transaction = await tx.transaction.create({
         data: {
@@ -89,46 +91,47 @@ export async function POST(request: NextRequest) {
           isFullSettlement: !!data.isFullSettlement,
           categoryId: data.categoryId,
           direction: credit.type === "lent" ? "received" : "sent", // Direction is opposite of original credit
-        }
+        },
       });
-      
+
       // 6. Update the credit record
       const newBalance = currentBalance - repaymentAmount;
       const isNowFullySettled = data.isFullSettlement || newBalance <= 0;
-      
+
       const updatedCredit = await tx.credit.update({
         where: { id: credit.id },
         data: {
           currentBalance: Math.max(0, newBalance),
           isPaid: true,
-          isFullySettled: isNowFullySettled
+          isFullySettled: isNowFullySettled,
         },
         include: {
           transactions: {
             where: {
-              isRepayment: true
+              isRepayment: true,
             },
             orderBy: {
-              date: "desc"
+              date: "desc",
             },
             include: {
-              account: true
-            }
-          }
-        }
+              account: true,
+            },
+          },
+        },
       });
-      
+
       // 7. Update account balance
       await tx.account.update({
         where: { id: data.accountId },
         data: {
           // If original was lent, increase balance on repayment; if borrowed, decrease balance
           balance: {
-            [credit.type === "lent" ? "increment" : "decrement"]: repaymentAmount,
+            [credit.type === "lent" ? "increment" : "decrement"]:
+              repaymentAmount,
           },
-        }
+        },
       });
-      
+
       // 8. Transform the credit data for response
       const transformedCredit = {
         id: updatedCredit.id,
@@ -141,7 +144,7 @@ export async function POST(request: NextRequest) {
         dueDate: updatedCredit.dueDate?.toISOString(),
         isSettled: updatedCredit.isFullySettled,
         totalRepaid: updatedCredit.amount - updatedCredit.currentBalance,
-        repayments: updatedCredit.transactions.map(r => ({
+        repayments: updatedCredit.transactions.map((r) => ({
           id: r.id,
           amount: r.amount,
           date: r.date.toISOString(),
@@ -149,18 +152,21 @@ export async function POST(request: NextRequest) {
           accountName: r.account?.name || "",
         })),
       };
-      
+
       return {
         repayment: transaction,
         originalCredit: transformedCredit,
       };
     });
-    
+
     return NextResponse.json(result);
   } catch (error) {
     console.error("Error recording repayment:", error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to record repayment" },
+      {
+        error:
+          error instanceof Error ? error.message : "Failed to record repayment",
+      },
       { status: 500 }
     );
   }

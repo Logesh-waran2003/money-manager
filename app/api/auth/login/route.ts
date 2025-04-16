@@ -1,7 +1,7 @@
-import { NextResponse } from 'next/server';
-import bcrypt from 'bcryptjs';
-import { prisma } from '@/lib/db';
-import { sign } from 'jsonwebtoken';
+import { NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
+import { prisma } from "@/lib/db";
+import { sign } from "jsonwebtoken";
 
 export async function POST(request: Request) {
   try {
@@ -10,7 +10,7 @@ export async function POST(request: Request) {
     // Validate input
     if (!email || !password) {
       return NextResponse.json(
-        { error: 'Email and password are required' },
+        { error: "Email and password are required" },
         { status: 400 }
       );
     }
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     // Check if user exists
     if (!user) {
       return NextResponse.json(
-        { error: 'Invalid email or password' },
+        { error: "Invalid email or password" },
         { status: 401 }
       );
     }
@@ -32,17 +32,18 @@ export async function POST(request: Request) {
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
       return NextResponse.json(
-        { error: 'Invalid email or password' },
+        { error: "Invalid email or password" },
         { status: 401 }
       );
     }
 
     // Generate JWT token
-    const token = sign(
-      { userId: user.id },
-      process.env.JWT_SECRET || 'fallback-secret',
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
-    );
+    if (!process.env.JWT_SECRET) {
+      throw new Error("JWT_SECRET environment variable is not set");
+    }
+    const token = sign({ userId: user.id }, process.env.JWT_SECRET as string, {
+      expiresIn: process.env.JWT_EXPIRES_IN || "7d",
+    });
 
     // Return user data (excluding password) and token
     return NextResponse.json({
@@ -56,9 +57,9 @@ export async function POST(request: Request) {
       token,
     });
   } catch (error) {
-    console.error('Login error:', error);
+    console.error("Login error:", error);
     return NextResponse.json(
-      { error: 'Failed to authenticate user' },
+      { error: "Failed to authenticate user" },
       { status: 500 }
     );
   }

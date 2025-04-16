@@ -1,14 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
-import { getAuthUser } from '@/lib/auth';
-import { calculateNextDueDate } from '@/lib/utils/recurring-payment-utils';
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/db";
+import { betterAuthInstance } from "@/lib/better-auth";
+import { getAuthUser } from "@/lib/auth";
 
 // GET all recurring payments for the authenticated user
 export async function GET(request: NextRequest) {
   try {
     const user = await getAuthUser(request);
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const recurringPayments = await prisma.recurringPayment.findMany({
@@ -16,12 +16,12 @@ export async function GET(request: NextRequest) {
       include: {
         transactions: {
           orderBy: {
-            date: 'desc',
+            date: "desc",
           },
           take: 5,
         },
       },
-      orderBy: { nextDueDate: 'asc' },
+      orderBy: { nextDueDate: "asc" },
     });
 
     // Transform data to include account and category names
@@ -56,9 +56,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(transformedPayments);
   } catch (error) {
-    console.error('Error fetching recurring payments:', error);
+    console.error("Error fetching recurring payments:", error);
     return NextResponse.json(
-      { error: 'Failed to fetch recurring payments' },
+      { error: "Failed to fetch recurring payments" },
       { status: 500 }
     );
   }
@@ -69,15 +69,15 @@ export async function POST(request: NextRequest) {
   try {
     const user = await getAuthUser(request);
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const data = await request.json();
-    
+
     // Validate required fields
     if (!data.name || !data.amount || !data.frequency || !data.nextDueDate) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: "Missing required fields" },
         { status: 400 }
       );
     }
@@ -85,18 +85,20 @@ export async function POST(request: NextRequest) {
     // Validate amount is positive
     if (data.amount <= 0) {
       return NextResponse.json(
-        { error: 'Amount must be greater than zero' },
+        { error: "Amount must be greater than zero" },
         { status: 400 }
       );
     }
 
     // Validate custom interval days if frequency is custom
     if (
-      data.frequency.toLowerCase() === 'custom' &&
+      data.frequency.toLowerCase() === "custom" &&
       (!data.customIntervalDays || data.customIntervalDays <= 0)
     ) {
       return NextResponse.json(
-        { error: 'Custom interval days must be provided and greater than zero' },
+        {
+          error: "Custom interval days must be provided and greater than zero",
+        },
         { status: 400 }
       );
     }
@@ -117,15 +119,15 @@ export async function POST(request: NextRequest) {
         counterparty: data.counterparty,
         description: data.description,
         isActive: data.isActive !== undefined ? data.isActive : true,
-        direction: data.direction || 'sent', // Default to 'sent' if not provided
+        direction: data.direction || "sent", // Default to 'sent' if not provided
       },
     });
 
     return NextResponse.json(recurringPayment);
   } catch (error) {
-    console.error('Error creating recurring payment:', error);
+    console.error("Error creating recurring payment:", error);
     return NextResponse.json(
-      { error: 'Failed to create recurring payment' },
+      { error: "Failed to create recurring payment" },
       { status: 500 }
     );
   }

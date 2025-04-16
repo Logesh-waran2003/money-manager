@@ -15,10 +15,17 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useUserStore } from "@/lib/stores/user-store";
+import { useAuthStore } from "@/lib/stores/useAuthStore";
 import { AlertCircle, Check } from "lucide-react";
 import { getPasswordStrength } from "@/lib/utils/validation";
 import { Progress } from "@/components/ui/progress";
@@ -30,14 +37,20 @@ const profileFormSchema = z.object({
 });
 
 // Define password form schema
-const passwordFormSchema = z.object({
-  currentPassword: z.string().min(1, { message: "Current password is required" }),
-  newPassword: z.string().min(8, { message: "Password must be at least 8 characters" }),
-  confirmPassword: z.string(),
-}).refine((data) => data.newPassword === data.confirmPassword, {
-  message: "Passwords do not match",
-  path: ["confirmPassword"],
-});
+const passwordFormSchema = z
+  .object({
+    currentPassword: z
+      .string()
+      .min(1, { message: "Current password is required" }),
+    newPassword: z
+      .string()
+      .min(8, { message: "Password must be at least 8 characters" }),
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  });
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState("profile");
@@ -48,8 +61,8 @@ export default function SettingsPage() {
   const [profileSuccess, setProfileSuccess] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
   const [passwordStrength, setPasswordStrength] = useState(0);
-  
-  const { user, updateProfile, changePassword } = useUserStore();
+
+  const { user, updateProfile, changePassword } = useAuthStore();
 
   // Initialize profile form
   const profileForm = useForm<z.infer<typeof profileFormSchema>>({
@@ -95,10 +108,14 @@ export default function SettingsPage() {
         name: values.name,
         email: values.email,
       });
-      
+
       setProfileSuccess("Profile updated successfully");
     } catch (err) {
-      setProfileError(err instanceof Error ? err.message : "Failed to update profile. Please try again.");
+      setProfileError(
+        err instanceof Error
+          ? err.message
+          : "Failed to update profile. Please try again."
+      );
     } finally {
       setIsProfileLoading(false);
     }
@@ -112,7 +129,7 @@ export default function SettingsPage() {
 
     try {
       await changePassword(values.currentPassword, values.newPassword);
-      
+
       setPasswordSuccess("Password changed successfully");
       passwordForm.reset({
         currentPassword: "",
@@ -120,7 +137,11 @@ export default function SettingsPage() {
         confirmPassword: "",
       });
     } catch (err) {
-      setPasswordError(err instanceof Error ? err.message : "Failed to change password. Please try again.");
+      setPasswordError(
+        err instanceof Error
+          ? err.message
+          : "Failed to change password. Please try again."
+      );
     } finally {
       setIsPasswordLoading(false);
     }
@@ -129,13 +150,17 @@ export default function SettingsPage() {
   return (
     <div className="container mx-auto p-4 max-w-3xl">
       <h1 className="text-3xl font-bold mb-6">Account Settings</h1>
-      
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+
+      <Tabs
+        value={activeTab}
+        onValueChange={setActiveTab}
+        className="space-y-6"
+      >
         <TabsList className="grid grid-cols-2 w-full max-w-md">
           <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="security">Security</TabsTrigger>
         </TabsList>
-        
+
         <TabsContent value="profile">
           <Card>
             <CardHeader>
@@ -151,16 +176,21 @@ export default function SettingsPage() {
                   <AlertDescription>{profileError}</AlertDescription>
                 </Alert>
               )}
-              
+
               {profileSuccess && (
                 <Alert className="mb-4 bg-green-50 border-green-200">
                   <Check className="h-4 w-4 text-green-600" />
-                  <AlertDescription className="text-green-800">{profileSuccess}</AlertDescription>
+                  <AlertDescription className="text-green-800">
+                    {profileSuccess}
+                  </AlertDescription>
                 </Alert>
               )}
 
               <Form {...profileForm}>
-                <form onSubmit={profileForm.handleSubmit(onProfileSubmit)} className="space-y-6">
+                <form
+                  onSubmit={profileForm.handleSubmit(onProfileSubmit)}
+                  className="space-y-6"
+                >
                   <FormField
                     control={profileForm.control}
                     name="name"
@@ -168,17 +198,17 @@ export default function SettingsPage() {
                       <FormItem>
                         <FormLabel>Name</FormLabel>
                         <FormControl>
-                          <Input 
-                            placeholder="Your name" 
-                            disabled={isProfileLoading} 
-                            {...field} 
+                          <Input
+                            placeholder="Your name"
+                            disabled={isProfileLoading}
+                            {...field}
                           />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                  
+
                   <FormField
                     control={profileForm.control}
                     name="email"
@@ -186,21 +216,22 @@ export default function SettingsPage() {
                       <FormItem>
                         <FormLabel>Email</FormLabel>
                         <FormControl>
-                          <Input 
-                            placeholder="your.email@example.com" 
-                            type="email" 
-                            disabled={isProfileLoading} 
-                            {...field} 
+                          <Input
+                            placeholder="your.email@example.com"
+                            type="email"
+                            disabled={isProfileLoading}
+                            {...field}
                           />
                         </FormControl>
                         <FormDescription>
-                          This email will be used for account-related notifications
+                          This email will be used for account-related
+                          notifications
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                  
+
                   <Button type="submit" disabled={isProfileLoading}>
                     {isProfileLoading ? "Saving..." : "Save Changes"}
                   </Button>
@@ -209,7 +240,7 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
         </TabsContent>
-        
+
         <TabsContent value="security">
           <Card>
             <CardHeader>
@@ -225,16 +256,21 @@ export default function SettingsPage() {
                   <AlertDescription>{passwordError}</AlertDescription>
                 </Alert>
               )}
-              
+
               {passwordSuccess && (
                 <Alert className="mb-4 bg-green-50 border-green-200">
                   <Check className="h-4 w-4 text-green-600" />
-                  <AlertDescription className="text-green-800">{passwordSuccess}</AlertDescription>
+                  <AlertDescription className="text-green-800">
+                    {passwordSuccess}
+                  </AlertDescription>
                 </Alert>
               )}
 
               <Form {...passwordForm}>
-                <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="space-y-6">
+                <form
+                  onSubmit={passwordForm.handleSubmit(onPasswordSubmit)}
+                  className="space-y-6"
+                >
                   <FormField
                     control={passwordForm.control}
                     name="currentPassword"
@@ -242,18 +278,18 @@ export default function SettingsPage() {
                       <FormItem>
                         <FormLabel>Current Password</FormLabel>
                         <FormControl>
-                          <Input 
-                            placeholder="••••••••" 
-                            type="password" 
-                            disabled={isPasswordLoading} 
-                            {...field} 
+                          <Input
+                            placeholder="••••••••"
+                            type="password"
+                            disabled={isPasswordLoading}
+                            {...field}
                           />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                  
+
                   <FormField
                     control={passwordForm.control}
                     name="newPassword"
@@ -261,18 +297,21 @@ export default function SettingsPage() {
                       <FormItem>
                         <FormLabel>New Password</FormLabel>
                         <FormControl>
-                          <Input 
-                            placeholder="••••••••" 
-                            type="password" 
-                            disabled={isPasswordLoading} 
-                            {...field} 
+                          <Input
+                            placeholder="••••••••"
+                            type="password"
+                            disabled={isPasswordLoading}
+                            {...field}
                             onChange={(e) => {
                               field.onChange(e);
                               handlePasswordChange(e);
                             }}
                           />
                         </FormControl>
-                        <Progress value={passwordStrength} className={`h-1 ${getStrengthColor()}`} />
+                        <Progress
+                          value={passwordStrength}
+                          className={`h-1 ${getStrengthColor()}`}
+                        />
                         <FormDescription>
                           Password must be at least 8 characters
                         </FormDescription>
@@ -280,7 +319,7 @@ export default function SettingsPage() {
                       </FormItem>
                     )}
                   />
-                  
+
                   <FormField
                     control={passwordForm.control}
                     name="confirmPassword"
@@ -288,20 +327,22 @@ export default function SettingsPage() {
                       <FormItem>
                         <FormLabel>Confirm New Password</FormLabel>
                         <FormControl>
-                          <Input 
-                            placeholder="••••••••" 
-                            type="password" 
-                            disabled={isPasswordLoading} 
-                            {...field} 
+                          <Input
+                            placeholder="••••••••"
+                            type="password"
+                            disabled={isPasswordLoading}
+                            {...field}
                           />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                  
+
                   <Button type="submit" disabled={isPasswordLoading}>
-                    {isPasswordLoading ? "Changing Password..." : "Change Password"}
+                    {isPasswordLoading
+                      ? "Changing Password..."
+                      : "Change Password"}
                   </Button>
                 </form>
               </Form>

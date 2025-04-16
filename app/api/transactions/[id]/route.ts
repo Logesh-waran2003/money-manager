@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { betterAuthInstance } from "@/lib/better-auth";
 import { getAuthUser } from "@/lib/auth";
 
 // GET a specific transaction by ID

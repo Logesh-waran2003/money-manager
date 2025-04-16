@@ -1,25 +1,29 @@
 # Architecture Approaches: Cloud-First vs. Local-First for Vibe Expense Tracker
 
+## Overview
+
+This document outlines the architectural options for the Vibe Expense Tracker, comparing cloud-first, local-first, and hybrid approaches. It also provides implementation notes and market considerations.
+
 ## 1. Cloud-First (Deployed Backend as Source of Truth)
 
 - All devices (laptop, mobile, web) sync directly with the deployed backend API/database.
-- The backend always has the latest data and is the single source of truth.
-- Sync logic is simple: clients push/pull from the backend.
+- The backend always has the latest data and acts as the single source of truth.
+- Sync logic is simple: clients push/pull data from the backend.
 - **Pros:**
   - Easier to maintain, scale, and monetize (SaaS model).
   - Real-time collaboration and multi-device support.
-  - Easier to add features like analytics, notifications, sharing.
+  - Easier to add features like analytics, notifications, and sharing.
 - **Cons:**
-  - Requires internet for most features.
+  - Requires internet connectivity for most features.
   - Some users may have privacy concerns.
 
-## 2. Local-First (Laptop or Mobile as Source of Truth, Backend as Sync Junction)
+## 2. Local-First (Device as Source of Truth, Backend as Sync Junction)
 
 - Each device (laptop or mobile) can act as the source of truth for its own data.
-- Data is stored locally (e.g., SQLite, IndexedDB, or local file on laptop/mobile).
-- The deployed backend acts as a sync junction, relaying changes between devices.
+- Data is stored locally (e.g., SQLite, IndexedDB, or a local file).
+- The backend acts as a sync junction, relaying changes between devices.
 - Sync logic is more complex:
-  - Bidirectional sync, conflict resolution, and merging changes are required.
+  - Requires bidirectional sync, conflict resolution, and merging changes.
   - Each device pushes local changes to the backend and pulls remote changes when online.
 - **Pros:**
   - Best offline experience; users can work fully offline.
@@ -33,8 +37,8 @@
 ## 3. Hybrid Option
 
 - Offer both modes:
-  - Cloud-First Mode: Default for most users, all data in the cloud, easy sync.
-  - Local-First Mode: For privacy-focused users, data stays on device, optional cloud sync.
+  - **Cloud-First Mode:** Default for most users; all data in the cloud, easy sync.
+  - **Local-First Mode:** For privacy-focused users; data stays on device, optional cloud sync.
 - Let users choose their mode at setup, or even switch later.
 
 ## 4. Market Impact & Target Audience
@@ -44,11 +48,11 @@
 | Cloud-first | Easy         | Easier      | Good (online)   | Standard  | Mainstream, teams        |
 | Local-first | Hard         | Harder      | Best (offline)  | Strongest | Privacy-focused, techies |
 
-- Cloud-first:
+- **Cloud-first:**
   - Easier to reach mainstream users.
   - Fits SaaS/subscription models.
   - Easier to add premium features (multi-device, analytics, export, etc.).
-- Local-first:
+- **Local-first:**
   - Appeals to privacy-conscious users (techies, journalists, activists).
   - Can be a unique selling point, but is a niche.
 

@@ -15,9 +15,16 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useUserStore } from "@/lib/stores/user-store";
+import { useAuthStore } from "@/lib/stores/useAuthStore";
 import { AlertCircle, Check, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
@@ -30,8 +37,8 @@ export default function ResetPasswordPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  
-  const { resetPassword } = useUserStore();
+
+  const { resetPassword } = useAuthStore();
 
   // Initialize form
   const form = useForm<z.infer<typeof formSchema>>({
@@ -49,11 +56,15 @@ export default function ResetPasswordPage() {
 
     try {
       await resetPassword(values.email);
-      
+
       setSuccess("Password reset instructions have been sent to your email");
       form.reset();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to reset password. Please try again.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to reset password. Please try again."
+      );
     } finally {
       setIsLoading(false);
     }
@@ -65,7 +76,8 @@ export default function ResetPasswordPage() {
         <CardHeader>
           <CardTitle className="text-2xl">Reset Password</CardTitle>
           <CardDescription>
-            Enter your email address and we'll send you instructions to reset your password
+            Enter your email address and we'll send you instructions to reset
+            your password
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -75,11 +87,13 @@ export default function ResetPasswordPage() {
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
-          
+
           {success && (
             <Alert className="mb-4 bg-green-50 border-green-200">
               <Check className="h-4 w-4 text-green-600" />
-              <AlertDescription className="text-green-800">{success}</AlertDescription>
+              <AlertDescription className="text-green-800">
+                {success}
+              </AlertDescription>
             </Alert>
           )}
 
@@ -92,11 +106,11 @@ export default function ResetPasswordPage() {
                   <FormItem>
                     <FormLabel>Email</FormLabel>
                     <FormControl>
-                      <Input 
-                        placeholder="your.email@example.com" 
-                        type="email" 
-                        disabled={isLoading} 
-                        {...field} 
+                      <Input
+                        placeholder="your.email@example.com"
+                        type="email"
+                        disabled={isLoading}
+                        {...field}
                       />
                     </FormControl>
                     <FormDescription>
@@ -106,7 +120,7 @@ export default function ResetPasswordPage() {
                   </FormItem>
                 )}
               />
-              
+
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading ? "Sending..." : "Send Reset Instructions"}
               </Button>
@@ -114,7 +128,10 @@ export default function ResetPasswordPage() {
           </Form>
         </CardContent>
         <CardFooter className="flex justify-center">
-          <Link href="/login" className="flex items-center text-sm text-muted-foreground hover:text-foreground">
+          <Link
+            href="/login"
+            className="flex items-center text-sm text-muted-foreground hover:text-foreground"
+          >
             <ArrowLeft className="h-4 w-4 mr-1" />
             Back to Login
           </Link>

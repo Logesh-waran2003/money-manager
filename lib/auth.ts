@@ -1,155 +1,70 @@
-import { NextAuthOptions } from "next-auth";
-import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "@/lib/db";
-import bcrypt from "bcryptjs";
 import { NextRequest } from "next/server";
-import { getServerSession } from "next-auth/next";
+import jwt from "jsonwebtoken";
 
 // Function to get the authenticated user from a request
 export async function getAuthUser(request: NextRequest) {
   try {
-    // DEVELOPMENT BYPASS: Return a user with an ID that exists in the database
-    return {
-      id: "cm9ulqk4l0000vfjbw60i7cj2", // Using the existing user ID from the database
-      name: "Test User",
-      email: "test@example.com",
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+    // Extract JWT from Authorization header or cookies
+    const authHeader = request.headers.get("authorization");
+    let token = null;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      token = authHeader.replace("Bearer ", "");
+    } else {
+      const cookie = request.headers.get("cookie");
+      if (cookie) {
+        const match = cookie.match(/token=([^;]+)/);
+        if (match) token = match[1];
+      }
+    }
+    if (!token) return null;
+    // Verify token
+    const secret = process.env.JWT_SECRET || "fallback-secret";
+    const payload = jwt.verify(token, secret);
+    if (typeof payload === "object" && payload.userId) {
+      const user = await prisma.user.findUnique({
+        where: { id: payload.userId },
+      });
+      if (!user) return null;
+      return user;
+    }
+    return null;
   } catch (error) {
-    console.error("Error in getAuthUser:", error);
     return null;
   }
 }
 
 // Function to get the current user's session
 export async function auth() {
-  try {
-    // DEVELOPMENT BYPASS: Return a mock session with a user that exists in the database
-    return {
-      user: {
-        id: "cm9ulqk4l0000vfjbw60i7cj2", // Using the existing user ID from the database
-        name: "Test User",
-        email: "test@example.com",
-      },
-    };
-  } catch (error) {
-    console.error("Error in auth:", error);
-    return null;
-  }
+  // This function is deprecated. Use getAuthUser with a request instead.
+  throw new Error("auth() is deprecated. Use getAuthUser(request) instead.");
 }
 
 // Function to get the current user
-export async function getCurrentUser() {
-  try {
-    // DEVELOPMENT BYPASS: Return a user with an ID that exists in the database
-    return {
-      id: "cm9ulqk4l0000vfjbw60i7cj2", // Using the existing user ID from the database
-      name: "Test User",
-      email: "test@example.com",
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-  } catch (error) {
-    console.error("Error in getCurrentUser:", error);
-    return null;
-  }
+export async function getCurrentUser(request: NextRequest) {
+  // Use getAuthUser for all user fetching logic
+  return getAuthUser(request);
 }
 
 // Middleware to check if the user is authenticated
+type AuthMiddlewareOptions = {
+  onError?: (error: Error) => void;
+  redirectTo?: string;
+};
+
 export async function authMiddleware(
   request: NextRequest,
-  options: {
-    redirectTo?: string;
-    onError?: (error: Error) => void;
-  } = {}
+  options: AuthMiddlewareOptions = {}
 ) {
-  try {
-    // DEVELOPMENT BYPASS: Always provide a user context with an ID that exists in the database
-    const mockUser = {
-      id: "cm9ulqk4l0000vfjbw60i7cj2", // Using the existing user ID from the database
-      name: "Test User",
-      email: "test@example.com",
-    };
-
-    return { user: mockUser };
-  } catch (error) {
-    if (options.onError) {
-      options.onError(error as Error);
-    }
-
-    if (options.redirectTo) {
-      return { redirect: options.redirectTo };
-    }
-
-    return { error: "Unauthorized" };
+  const user = await getAuthUser(request);
+  if (user) {
+    return { user };
   }
+  if (options.onError) {
+    options.onError(new Error("Unauthorized"));
+  }
+  if (options.redirectTo) {
+    return { redirect: options.redirectTo };
+  }
+  return { error: "Unauthorized" };
 }
-
-export const authOptions: NextAuthOptions = {
-  providers: [
-    CredentialsProvider({
-      name: "Credentials",
-      credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" },
-      },
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          return null;
-        }
-
-        const user = await prisma.user.findUnique({
-          where: {
-            email: credentials.email,
-          },
-        });
-
-        if (!user) {
-          return null;
-        }
-
-        const passwordMatch = await bcrypt.compare(
-          credentials.password,
-          user.password
-        );
-
-        if (!passwordMatch) {
-          return null;
-        }
-
-        return {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          image: user.image,
-        };
-      },
-    }),
-  ],
-  session: {
-    strategy: "jwt",
-  },
-  pages: {
-    signIn: "/login",
-    signOut: "/login",
-    error: "/login",
-  },
-  callbacks: {
-    async session({ session, token }) {
-      if (token) {
-        session.user.id = token.id as string;
-        session.user.name = token.name as string;
-        session.user.email = token.email as string;
-        session.user.image = token.picture as string;
-      }
-      return session;
-    },
-    async jwt({ token, user }) {
-      if (user) {
-        token.id = user.id;
-      }
-      return token;
-    },
-  },
-};

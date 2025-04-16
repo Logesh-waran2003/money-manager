@@ -6,12 +6,18 @@ import { useAuthStore } from "@/lib/stores/useAuthStore";
 
 export default function HomePage() {
   const router = useRouter();
+  const { isAuthenticated } = useAuthStore();
 
   useEffect(() => {
-    // For now, always redirect to accounts page to bypass auth issues
-    router.push("/dashboard");
-  }, [router]);
+    if (isAuthenticated) {
+      router.push("/dashboard"); // Redirect to the dashboard if authenticated
+    } else {
+      // Optionally, show a landing page or do nothing (stay on /)
+      //redirect to login
+      router.push("/login");
+    }
+  }, [isAuthenticated, router]);
 
-  // This page will never be shown as we redirect immediately
+  // Optionally, render a landing page or null
   return null;
 }

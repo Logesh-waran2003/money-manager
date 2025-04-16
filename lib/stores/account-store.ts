@@ -50,8 +50,22 @@ export const useAccountStore = create<AccountStore>()(
         fetchAccounts: async () => {
           set({ isLoading: true, error: null });
           try {
-            // Make API call to fetch all accounts including inactive
-            const token = localStorage.getItem("token") || "";
+            // Import dynamically to avoid circular dependency
+            const { useAuthStore } = await import("@/lib/stores/useAuthStore");
+            // Get token from auth store instead of directly from localStorage
+            const { token } = useAuthStore.getState();
+            
+            console.log("Fetching accounts with token:", token ? "Token exists" : "No token");
+            
+            if (!token) {
+              console.log("No authentication token available");
+              set({ 
+                isLoading: false,
+                error: "Authentication required"
+              });
+              return;
+            }
+            
             const response = await fetch("/api/accounts?includeInactive=true", {
               headers: {
                 Authorization: `Bearer ${token}`,
