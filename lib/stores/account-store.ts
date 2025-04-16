@@ -14,6 +14,8 @@ export interface Account {
   notes?: string;
   isDefault: boolean;
   isActive?: boolean;
+  creditLimit?: number;
+  dueDate?: string;
   createdAt: string;
   updatedAt: string;
 }
