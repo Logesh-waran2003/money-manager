@@ -1,218 +1,155 @@
-import { verify } from 'jsonwebtoken';
-import { cookies } from 'next/headers';
-import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from './db';
+import { NextAuthOptions } from "next-auth";
+import CredentialsProvider from "next-auth/providers/credentials";
+import { prisma } from "@/lib/db";
+import bcrypt from "bcryptjs";
+import { NextRequest } from "next/server";
+import { getServerSession } from "next-auth/next";
 
-// Interface for the decoded JWT token
-interface DecodedToken {
-  userId: string;
-  iat: number;
-  exp: number;
-}
-
-// Interface for the authenticated request context
-export interface AuthContext {
-  userId: string;
-  user?: {
-    id: string;
-    name: string;
-    email: string;
-  };
-}
-
-/**
- * Get the authenticated user from the request
- * Used in API routes to get the current user
- */
+// Function to get the authenticated user from a request
 export async function getAuthUser(request: NextRequest) {
   try {
     // DEVELOPMENT BYPASS: Return a user with an ID that exists in the database
     return {
-      id: "cm91y74jd0000ime8za4jbuby", // Using the existing user ID from the database
+      id: "cm94i0m9t0000ouc5bsldef8f", // Using the existing user ID from the database
       name: "Test User",
       email: "test@example.com",
       createdAt: new Date(),
       updatedAt: new Date(),
     };
-    
-    // Original code below - commented out for now
-    /*
-    // Get token from Authorization header
-    const authHeader = request.headers.get('authorization');
-    let token: string | undefined;
-    
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      token = authHeader.split(' ')[1];
-    } else {
-      // Fallback to cookie if no Authorization header
-      const cookieStore = cookies();
-      token = cookieStore.get('token')?.value;
-    }
-    
-    if (!token) {
-      return null;
-    }
-
-    // Verify and decode the token
-    const decoded = verify(
-      token,
-      process.env.JWT_SECRET || 'fallback-secret'
-    ) as DecodedToken;
-
-    // Get user from database
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
-
-    return user;
-    */
   } catch (error) {
-    console.error('Auth error:', error);
+    console.error("Error in getAuthUser:", error);
     return null;
   }
 }
 
-/**
- * Get the current authenticated user from the request
- */
+// Function to get the current user's session
+export async function auth() {
+  try {
+    // DEVELOPMENT BYPASS: Return a mock session with a user that exists in the database
+    return {
+      user: {
+        id: "cm94i0m9t0000ouc5bsldef8f", // Using the existing user ID from the database
+        name: "Test User",
+        email: "test@example.com",
+      },
+    };
+  } catch (error) {
+    console.error("Error in auth:", error);
+    return null;
+  }
+}
+
+// Function to get the current user
 export async function getCurrentUser() {
   try {
     // DEVELOPMENT BYPASS: Return a user with an ID that exists in the database
     return {
-      id: "cm91y74jd0000ime8za4jbuby", // Using the existing user ID from the database
+      id: "cm92n2yn10000u1yai7zk6ebr", // Using the existing user ID from the database
       name: "Test User",
       email: "test@example.com",
       createdAt: new Date(),
       updatedAt: new Date(),
     };
-    
-    // Original code below - commented out for now
-    /*
-    const cookieStore = cookies();
-    const token = cookieStore.get('token')?.value;
-
-    if (!token) {
-      return null;
-    }
-
-    // Verify and decode the token
-    const decoded = verify(
-      token,
-      process.env.JWT_SECRET || 'fallback-secret'
-    ) as DecodedToken;
-
-    // Get user from database
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
-
-    return user;
-    */
   } catch (error) {
-    console.error('Auth error:', error);
+    console.error("Error in getCurrentUser:", error);
     return null;
   }
 }
 
-/**
- * Enhanced middleware to protect API routes
- */
+// Middleware to check if the user is authenticated
 export async function authMiddleware(
   request: NextRequest,
-  handler: (req: NextRequest, context: AuthContext) => Promise<NextResponse>
+  options: {
+    redirectTo?: string;
+    onError?: (error: Error) => void;
+  } = {}
 ) {
   try {
     // DEVELOPMENT BYPASS: Always provide a user context with an ID that exists in the database
     const mockUser = {
-      id: "cm91y74jd0000ime8za4jbuby", // Using the existing user ID from the database
+      id: "cm94i0m9t0000ouc5bsldef8f", // Using the existing user ID from the database
       name: "Test User",
       email: "test@example.com",
     };
-    
-    // Call the handler with the mocked authenticated context
-    return await handler(request, { userId: mockUser.id, user: mockUser });
-    
-    // Original code below - commented out for now
-    /*
-    // Get token from Authorization header
-    const authHeader = request.headers.get('authorization');
-    let token: string | undefined;
-    
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      token = authHeader.split(' ')[1];
-    } else {
-      // Fallback to cookie if no Authorization header
-      const cookieStore = cookies();
-      token = cookieStore.get('token')?.value;
-    }
-    
-    if (!token) {
-      return NextResponse.json(
-        { error: 'Unauthorized: No authentication token provided' },
-        { status: 401 }
-      );
-    }
 
-    // Verify and decode the token
-    const decoded = verify(
-      token,
-      process.env.JWT_SECRET || 'fallback-secret'
-    ) as DecodedToken;
-
-    // Get basic user info for context
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-      },
-    });
-
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized: User not found' },
-        { status: 401 }
-      );
-    }
-
-    // Call the handler with the authenticated context
-    return await handler(request, { userId: decoded.userId, user });
-    */
+    return { user: mockUser };
   } catch (error) {
-    console.error('Auth middleware error:', error);
-    
-    if (error.name === 'TokenExpiredError') {
-      return NextResponse.json(
-        { error: 'Unauthorized: Token expired' },
-        { status: 401 }
-      );
+    if (options.onError) {
+      options.onError(error as Error);
     }
-    
-    if (error.name === 'JsonWebTokenError') {
-      return NextResponse.json(
-        { error: 'Unauthorized: Invalid token' },
-        { status: 401 }
-      );
+
+    if (options.redirectTo) {
+      return { redirect: options.redirectTo };
     }
-    
-    return NextResponse.json(
-      { error: 'Unauthorized: Authentication failed' },
-      { status: 401 }
-    );
+
+    return { error: "Unauthorized" };
   }
 }
+
+export const authOptions: NextAuthOptions = {
+  providers: [
+    CredentialsProvider({
+      name: "Credentials",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) {
+          return null;
+        }
+
+        const user = await prisma.user.findUnique({
+          where: {
+            email: credentials.email,
+          },
+        });
+
+        if (!user) {
+          return null;
+        }
+
+        const passwordMatch = await bcrypt.compare(
+          credentials.password,
+          user.password
+        );
+
+        if (!passwordMatch) {
+          return null;
+        }
+
+        return {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          image: user.image,
+        };
+      },
+    }),
+  ],
+  session: {
+    strategy: "jwt",
+  },
+  pages: {
+    signIn: "/login",
+    signOut: "/login",
+    error: "/login",
+  },
+  callbacks: {
+    async session({ session, token }) {
+      if (token) {
+        session.user.id = token.id as string;
+        session.user.name = token.name as string;
+        session.user.email = token.email as string;
+        session.user.image = token.picture as string;
+      }
+      return session;
+    },
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id;
+      }
+      return token;
+    },
+  },
+};

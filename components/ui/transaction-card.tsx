@@ -49,8 +49,11 @@ interface TransactionCardProps {
   category: TransactionCategory;
   counterparty: string;
   accountName?: string;
+  accountId?: string;
+  toAccountId?: string;
   onClick?: () => void;
   className?: string;
+  showInAccount?: boolean;
 }
 
 export function TransactionCard({
@@ -62,8 +65,11 @@ export function TransactionCard({
   category,
   counterparty,
   accountName,
+  accountId,
+  toAccountId,
   onClick,
   className,
+  showInAccount = false,
 }: TransactionCardProps) {
   // Get category icon
   const getCategoryIcon = () => {
@@ -113,6 +119,78 @@ export function TransactionCard({
     }
   };
 
+  // Determine the sign and styling for the amount
+  const getAmountDisplay = () => {
+    // For credit transactions
+    if (type === "credit") {
+      // Check if this is a credit transaction with creditType
+      const creditType = (description || "").toLowerCase().includes("lent") ? "lent" : 
+                         (description || "").toLowerCase().includes("borrowed") ? "borrowed" : 
+                         (description || "").toLowerCase().includes("repayment") ? "repayment" : null;
+      
+      if (creditType === "lent") {
+        // Lent money should be negative (money going out)
+        return {
+          prefix: "-",
+          className: "text-error"
+        };
+      } else if (creditType === "borrowed") {
+        // Borrowed money should be positive (money coming in)
+        return {
+          prefix: "+",
+          className: "text-success"
+        };
+      } else if (creditType === "repayment") {
+        // For repayments, if it contains "borrowed", it's money going out (negative)
+        // If it contains "lent", it's money coming in (positive)
+        if ((description || "").toLowerCase().includes("borrowed")) {
+          return {
+            prefix: "-",
+            className: "text-error"
+          };
+        } else {
+          return {
+            prefix: "+",
+            className: "text-success"
+          };
+        }
+      }
+    }
+    
+    // For other transaction types
+    if (type === "income") {
+      return {
+        prefix: "+",
+        className: "text-success"
+      };
+    } else if (type === "expense") {
+      return {
+        prefix: "-",
+        className: "text-error"
+      };
+    } else if (type === "transfer" && showInAccount) {
+      // For transfers in account view
+      if (accountId === toAccountId) {
+        return {
+          prefix: "+",
+          className: "text-success"
+        };
+      } else {
+        return {
+          prefix: "-",
+          className: "text-error"
+        };
+      }
+    }
+    
+    return {
+      prefix: "",
+      className: ""
+    };
+  };
+
+  const amountDisplay = getAmountDisplay();
+
   // Format the date
   const formattedDate = formatTransactionDate(date);
 
@@ -123,6 +201,7 @@ export function TransactionCard({
         className
       )}
       onClick={onClick}
+      data-testid={`transaction-card-${id}`}
     >
       <CardContent className="p-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -146,10 +225,9 @@ export function TransactionCard({
         <div className="text-right">
           <div className={cn(
             "font-medium font-mono",
-            type === "income" ? "text-success" : 
-            type === "expense" ? "text-error" : ""
+            amountDisplay.className
           )}>
-            {type === "income" ? "+" : type === "expense" ? "-" : ""}
+            {amountDisplay.prefix}
             {formatCurrency(amount)}
           </div>
           <div className="text-xs text-muted-foreground">{formattedDate}</div>

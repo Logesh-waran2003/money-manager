@@ -1,12 +1,15 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import PaymentTypeSelector from "./payment-type-selector";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { CreditCard, Repeat, DollarSign, ArrowRightLeft } from "lucide-react";
+import CreditTransactionSelector from "@/components/credit-transaction-selector";
+import RecurringPaymentSelector from "@/components/recurring-payment-selector";
+import { useCreditStore } from "@/lib/stores/credit-store";
 
 // Payment apps list
 const paymentApps = [
@@ -38,6 +41,13 @@ interface TransactionFormFieldsProps {
   setIsRecurring: (value: boolean) => void;
   isTransfer?: boolean;
   setIsTransfer?: (value: boolean) => void;
+  isRepayment?: boolean;
+  setIsRepayment?: (value: boolean) => void;
+  selectedCreditId?: string;
+  setSelectedCreditId?: (value: string) => void;
+  selectedRecurringPaymentId?: string;
+  setSelectedRecurringPaymentId?: (value: string) => void;
+  onRecurringPaymentSelect?: (payment: any) => void;
 }
 
 const TransactionFormFields: React.FC<TransactionFormFieldsProps> = ({
@@ -58,8 +68,29 @@ const TransactionFormFields: React.FC<TransactionFormFieldsProps> = ({
   isRecurring,
   setIsRecurring,
   isTransfer = false,
-  setIsTransfer = () => {}
+  setIsTransfer = () => {},
+  isRepayment = false,
+  setIsRepayment = () => {},
+  selectedCreditId = "",
+  setSelectedCreditId = () => {},
+  selectedRecurringPaymentId = "",
+  setSelectedRecurringPaymentId = () => {},
+  onRecurringPaymentSelect = () => {}
 }) => {
+  // Prefetch credits when component mounts - only once
+  useEffect(() => {
+    // Prefetch credits for both lent and borrowed types
+    const fetchCredits = async () => {
+      try {
+        await useCreditStore.getState().fetchCredits();
+      } catch (error) {
+        console.error("Error prefetching credits:", error);
+      }
+    };
+    
+    fetchCredits();
+  }, []); // Empty dependency array ensures this runs only once
+
   // Handle transaction type selection based on toggles
   const handleCreditToggle = (checked: boolean) => {
     setIsCredit(checked);
@@ -138,6 +169,34 @@ const TransactionFormFields: React.FC<TransactionFormFieldsProps> = ({
           </div>
         </div>
 
+        {/* Recurring Payment Selector - Only show when recurring is selected */}
+        {isRecurring && (
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Select Existing Recurring Payment</label>
+            <RecurringPaymentSelector
+              value={selectedRecurringPaymentId}
+              onChange={setSelectedRecurringPaymentId}
+              onRecurringPaymentSelect={(payment) => {
+                // Auto-fill form fields based on selected recurring payment
+                if (payment) {
+                  setRecurringName(payment.name);
+                  if (payment.counterparty) setCounterparty(payment.counterparty);
+                  // Pass complete payment object to parent component for additional field updates
+                  const fullPayment = {
+                    ...payment,
+                    defaultAmount: payment.defaultAmount || payment.amount || 0,
+                    frequency: payment.frequency?.toLowerCase() || 'monthly'
+                  };
+                  onRecurringPaymentSelect(fullPayment);
+                }
+              }}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Select an existing recurring payment or create a new one
+            </p>
+          </div>
+        )}
+
         {!isTransfer && (
           <div className="space-y-2">
             <label className="text-sm font-medium">
@@ -171,6 +230,45 @@ const TransactionFormFields: React.FC<TransactionFormFieldsProps> = ({
                 I Borrowed Money
               </ToggleGroupItem>
             </ToggleGroup>
+            <p className="text-xs text-muted-foreground mt-1">
+              {creditType === "lent" 
+                ? "Select this if you lent money to someone and they need to pay you back." 
+                : "Select this if you borrowed money from someone and you need to pay them back."}
+            </p>
+            
+            <div className="flex items-center space-x-2 mt-3">
+              <Switch 
+                id="repayment-toggle" 
+                checked={isRepayment} 
+                onCheckedChange={(checked) => {
+                  setIsRepayment(checked);
+                  if (!checked) {
+                    setSelectedCreditId("");
+                  }
+                }}
+              />
+              <Label htmlFor="repayment-toggle" className="cursor-pointer">
+                This is a repayment for an existing credit
+              </Label>
+            </div>
+            
+            {isRepayment && (
+              <div className="mt-3 space-y-2 p-3 border border-border/50 rounded-md bg-background/50">
+                <label className="text-sm font-medium">Select Existing Credit</label>
+                <CreditTransactionSelector
+                  value={selectedCreditId}
+                  onChange={setSelectedCreditId}
+                  creditType={creditType}
+                  onBalanceChange={(balance) => {
+                    // Optionally auto-set amount to current balance
+                    // setAmount(balance.toString());
+                  }}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Select the original credit transaction that this payment is for.
+                </p>
+              </div>
+            )}
           </div>
         )}
 

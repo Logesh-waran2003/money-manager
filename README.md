@@ -2,6 +2,8 @@
 
 A comprehensive personal finance tracking application with a unified transaction form for managing different transaction types.
 
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fyourusername%2Fmoney-manager)
+
 ## Features
 
 - Account management (debit cards, credit cards, bank accounts)

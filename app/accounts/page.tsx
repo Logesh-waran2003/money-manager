@@ -1,16 +1,36 @@
 "use client";
 
-import React from "react";
-import Link from "next/link";
+import React, { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { useAccounts } from "@/lib/stores/useAccountStore";
-import { Plus, CreditCard, Wallet, Landmark, TrendingUp, Star, MoreHorizontal } from "lucide-react";
+import { useAccountStore } from "@/lib/stores/account-store";
+import { Plus, CreditCard, Wallet, Landmark, Star, MoreHorizontal } from "lucide-react";
+import { AccountToggle } from "@/components/AccountToggle";
 
 export default function AccountsPage() {
   const router = useRouter();
-  const { data: accounts, isLoading, error } = useAccounts();
+  
+  // Use the account store directly for accounts data
+  const { 
+    accounts, 
+    isLoading, 
+    error, 
+    fetchAccounts
+  } = useAccountStore();
+  
+  // Fetch accounts on component mount
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        await fetchAccounts();
+      } catch (error) {
+        console.error("Error fetching accounts:", error);
+      }
+    };
+    
+    fetchData();
+  }, [fetchAccounts]);
 
   const getAccountIcon = (type: string) => {
     switch (type) {
@@ -30,30 +50,35 @@ export default function AccountsPage() {
     return accounts?.reduce((total, account) => {
       // For credit accounts, we don't add to the total balance
       if (account.type === "credit") return total;
+      // Only include active accounts in the total balance
+      if (account.isActive === false) return total;
       return total + account.balance;
     }, 0) || 0;
   };
 
-  const formatCurrency = (amount: number, currency: string = 'USD') => {
+  const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency,
+      currency: 'USD',
     }).format(amount);
   };
 
   return (
     <div className="container mx-auto p-4">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Accounts</h1>
-        <Button onClick={() => router.push("/accounts/new")}>
-          <Plus className="mr-2 h-4 w-4" /> Add Account
-        </Button>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
+        <h1 className="text-2xl font-bold mb-4 md:mb-0">Accounts</h1>
+        <div className="flex flex-col md:flex-row space-y-2 md:space-y-0 md:space-x-4 items-start md:items-center">
+          <AccountToggle />
+          <Button onClick={() => router.push("/accounts/new")}>
+            <Plus className="mr-2 h-4 w-4" /> Add Account
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
         <div className="text-center py-8">Loading accounts...</div>
       ) : error ? (
-        <div className="text-center py-8 text-red-500">{(error as Error).message}</div>
+        <div className="text-center py-8 text-red-500">{error}</div>
       ) : !accounts || accounts.length === 0 ? (
         <div className="text-center py-8">
           <p className="mb-4">You don't have any accounts yet.</p>
@@ -75,37 +100,40 @@ export default function AccountsPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {accounts.map((account) => (
-              <Card key={account.id} className="hover:shadow-md transition-shadow">
+              <Card key={account.id} className={`hover:shadow-md transition-shadow ${account.isActive === false ? 'opacity-60' : ''}`}>
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <div className="flex items-center">
-                    <div className="mr-2 bg-primary/10 p-2 rounded-full">
+                    <div className={`mr-2 ${account.isActive === false ? 'bg-gray-200' : 'bg-primary/10'} p-2 rounded-full`}>
                       {getAccountIcon(account.type)}
                     </div>
                     <div>
-                      <CardTitle className="text-lg">{account.name}</CardTitle>
-                      <CardDescription>
-                        {account.type.charAt(0).toUpperCase() + account.type.slice(1)}
-                        {account.isDefault && (
-                          <span className="ml-2 inline-flex items-center">
-                            <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                            <span className="ml-1 text-xs">Default</span>
-                          </span>
-                        )}
-                      </CardDescription>
+                      <CardTitle className="text-lg">
+                        {account.name}
+                        {account.isActive === false && <span className="ml-2 text-xs text-gray-500">(Inactive)</span>}
+                      </CardTitle>
+                      <CardDescription>{account.institution || account.type}</CardDescription>
                     </div>
                   </div>
-                  <Button variant="ghost" size="icon">
-                    <MoreHorizontal className="h-4 w-4" />
-                  </Button>
+                  {account.isDefault && (
+                    <div className="bg-primary/10 p-1 rounded-full">
+                      <Star className="h-4 w-4 text-primary" />
+                    </div>
+                  )}
                 </CardHeader>
                 <CardContent>
-                  <p className="text-2xl font-bold">
-                    {formatCurrency(account.balance, account.currency)}
-                  </p>
+                  <p className="text-2xl font-bold">{formatCurrency(account.balance)}</p>
+                  {account.type === "credit" && account.creditLimit && (
+                    <p className="text-sm text-gray-500">
+                      Available: {formatCurrency(account.creditLimit - account.balance)}
+                    </p>
+                  )}
                 </CardContent>
-                <CardFooter className="pt-0">
-                  <Button variant="outline" size="sm" className="w-full" onClick={() => router.push(`/accounts/${account.id}`)}>
+                <CardFooter className="flex justify-between">
+                  <Button variant="outline" size="sm" onClick={() => router.push(`/accounts/${account.id}`)}>
                     View Details
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => router.push(`/accounts/${account.id}/edit`)}>
+                    <MoreHorizontal className="h-4 w-4" />
                   </Button>
                 </CardFooter>
               </Card>
