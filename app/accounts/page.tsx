@@ -89,9 +89,10 @@ export default function AccountsPage() {
 
       {isLoading ? (
         <div className="text-center py-8">Loading accounts...</div>
-      ) : error ? (
-        <div className="text-center py-8 text-red-500">{error}</div>
-      ) : !accounts || accounts.length === 0 ? (
+      ) : // : error ? (
+      //   <div className="text-center py-8 text-red-500">{error}</div>
+      // )
+      !accounts || accounts.length === 0 ? (
         <div className="text-center py-8">
           <p className="mb-4">You don't have any accounts yet.</p>
           <Button onClick={() => router.push("/accounts/new")}>

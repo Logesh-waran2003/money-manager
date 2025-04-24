@@ -6,6 +6,8 @@ import { isPublicRoute } from "./lib/routes";
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
+  console.log("Middleware triggered for path:", path);
+  return NextResponse.next();
   // Skip middleware for public routes
   if (isPublicRoute(path)) {
     return NextResponse.next();

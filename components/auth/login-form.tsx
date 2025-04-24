@@ -36,6 +36,8 @@ export function LoginForm() {
     }
   };
 
+  console.log("LoginForm rendered");
+
   return (
     <Card className="w-full max-w-md mx-auto">
       <CardHeader>
