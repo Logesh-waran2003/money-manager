@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { betterAuthInstance } from "@/lib/better-auth";
-import { getAuthUser } from "@/lib/auth";
+import { DEV_USER_ID } from "@/lib/auth";
 
 interface Params {
   params: {
@@ -12,17 +11,13 @@ interface Params {
 // GET a specific recurring payment
 export async function GET(request: NextRequest, { params }: Params) {
   try {
-    const user = await getAuthUser(request);
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+    const userId = DEV_USER_ID;
     const { id } = params;
 
     const recurringPayment = await prisma.recurringPayment.findUnique({
       where: {
         id,
-        userId: user.id, // Ensure the payment belongs to the authenticated user
+        userId, // Ensure the payment belongs to the authenticated user
       },
       include: {
         transactions: {
@@ -78,11 +73,7 @@ export async function GET(request: NextRequest, { params }: Params) {
 // UPDATE a recurring payment
 export async function PUT(request: NextRequest, { params }: Params) {
   try {
-    const user = await getAuthUser(request);
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+    const userId = DEV_USER_ID;
     const { id } = params;
     const data = await request.json();
 
@@ -90,7 +81,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
     const existingPayment = await prisma.recurringPayment.findUnique({
       where: {
         id,
-        userId: user.id,
+        userId,
       },
     });
 
@@ -165,18 +156,14 @@ export async function PUT(request: NextRequest, { params }: Params) {
 // DELETE a recurring payment
 export async function DELETE(request: NextRequest, { params }: Params) {
   try {
-    const user = await getAuthUser(request);
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+    const userId = DEV_USER_ID;
     const { id } = params;
 
     // Check if the recurring payment exists and belongs to the user
     const existingPayment = await prisma.recurringPayment.findUnique({
       where: {
         id,
-        userId: user.id,
+        userId,
       },
     });
 

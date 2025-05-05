@@ -1,18 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { betterAuthInstance } from "@/lib/better-auth";
-import { getAuthUser } from "@/lib/auth";
+import { DEV_USER_ID } from "@/lib/auth";
 
 // GET all recurring payments for the authenticated user
 export async function GET(request: NextRequest) {
   try {
-    const user = await getAuthUser(request);
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const userId = DEV_USER_ID;
 
     const recurringPayments = await prisma.recurringPayment.findMany({
-      where: { userId: user.id },
+      where: { userId },
       include: {
         transactions: {
           orderBy: {
@@ -67,10 +63,7 @@ export async function GET(request: NextRequest) {
 // CREATE a new recurring payment
 export async function POST(request: NextRequest) {
   try {
-    const user = await getAuthUser(request);
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const userId = DEV_USER_ID;
 
     const data = await request.json();
 
@@ -106,7 +99,7 @@ export async function POST(request: NextRequest) {
     // Create the recurring payment
     const recurringPayment = await prisma.recurringPayment.create({
       data: {
-        userId: user.id,
+        userId,
         name: data.name,
         defaultAmount: data.amount, // Use amount as defaultAmount to match schema
         frequency: data.frequency,

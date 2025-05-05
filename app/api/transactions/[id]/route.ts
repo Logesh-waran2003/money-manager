@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { betterAuthInstance } from "@/lib/better-auth";
-import { getAuthUser } from "@/lib/auth";
+import { DEV_USER_ID } from "@/lib/auth";
 
 // GET a specific transaction by ID
 export async function GET(
@@ -9,15 +8,11 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = await getAuthUser(request);
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+    const userId = DEV_USER_ID;
     const transaction = await prisma.transaction.findUnique({
       where: {
         id: params.id,
-        userId: user.id,
+        userId,
       },
       include: {
         account: true,
@@ -49,18 +44,14 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = await getAuthUser(request);
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+    const userId = DEV_USER_ID;
     const data = await request.json();
 
     // Get the original transaction to calculate balance adjustments
     const originalTransaction = await prisma.transaction.findUnique({
       where: {
         id: params.id,
-        userId: user.id,
+        userId,
       },
     });
 
@@ -75,7 +66,7 @@ export async function PUT(
     const transaction = await prisma.transaction.update({
       where: {
         id: params.id,
-        userId: user.id,
+        userId,
       },
       data: {
         ...data,
@@ -250,16 +241,12 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = await getAuthUser(request);
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+    const userId = DEV_USER_ID;
     // Get the transaction before deleting to handle balance adjustments
     const transaction = await prisma.transaction.findUnique({
       where: {
         id: params.id,
-        userId: user.id,
+        userId,
       },
     });
 
@@ -274,7 +261,7 @@ export async function DELETE(
     await prisma.transaction.delete({
       where: {
         id: params.id,
-        userId: user.id,
+        userId,
       },
     });
 

@@ -8,28 +8,26 @@ import { useTransactionStore } from "@/lib/stores/transaction-store";
 import { useAccountStore } from "@/lib/stores/account-store";
 import { ArrowLeftRight, Plus, ArrowRight } from "lucide-react";
 import { formatCurrency } from "@/lib/utils/currency";
-import { TransactionCard } from "@/components/ui/transaction-card";
-import { cn } from "@/lib/utils";
 
 export default function TransfersPage() {
   const router = useRouter();
   const { transactions, isLoading } = useTransactionStore();
   const { accounts } = useAccountStore();
-  
+
   // Filter only transfer transactions
   const transferTransactions = transactions
-    .filter(t => t.type === 'transfer')
+    .filter((t) => t.type === "transfer")
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  
+
   // Get account name by ID
   const getAccountName = (accountId: string) => {
-    const account = accounts.find(a => a.id === accountId);
+    const account = accounts.find((a) => a.id === accountId);
     return account?.name || "Unknown Account";
   };
 
   // Get account color by ID
   const getAccountColor = (accountId: string) => {
-    const account = accounts.find(a => a.id === accountId);
+    const account = accounts.find((a) => a.id === accountId);
     return account?.color || "#888888";
   };
 
@@ -41,7 +39,7 @@ export default function TransfersPage() {
           <Plus className="mr-2 h-4 w-4" /> New Transfer
         </Button>
       </div>
-      
+
       <Card>
         <CardHeader className="pb-2">
           <div className="flex justify-between items-center">
@@ -58,7 +56,7 @@ export default function TransfersPage() {
           {transferTransactions.length > 0 ? (
             <div className="divide-y divide-border">
               {transferTransactions.map((transaction) => (
-                <div 
+                <div
                   key={transaction.id}
                   className="p-4 hover:bg-accent/5 cursor-pointer transition-all"
                   onClick={() => router.push(`/transactions/${transaction.id}`)}
@@ -70,17 +68,27 @@ export default function TransfersPage() {
                       </div>
                       <div>
                         <div className="font-medium text-sm flex items-center gap-2">
-                          <span 
-                            className="inline-block w-3 h-3 rounded-full" 
-                            style={{ backgroundColor: getAccountColor(transaction.accountId) }}
+                          <span
+                            className="inline-block w-3 h-3 rounded-full"
+                            style={{
+                              backgroundColor: getAccountColor(
+                                transaction.accountId
+                              ),
+                            }}
                           ></span>
                           <span>{getAccountName(transaction.accountId)}</span>
                           <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                          <span 
-                            className="inline-block w-3 h-3 rounded-full" 
-                            style={{ backgroundColor: getAccountColor(transaction.toAccountId || '') }}
+                          <span
+                            className="inline-block w-3 h-3 rounded-full"
+                            style={{
+                              backgroundColor: getAccountColor(
+                                transaction.toAccountId || ""
+                              ),
+                            }}
                           ></span>
-                          <span>{getAccountName(transaction.toAccountId || '')}</span>
+                          <span>
+                            {getAccountName(transaction.toAccountId || "")}
+                          </span>
                         </div>
                         <div className="text-xs text-muted-foreground mt-1">
                           {transaction.description || "Transfer"}
@@ -102,8 +110,8 @@ export default function TransfersPage() {
           ) : (
             <div className="p-8 text-center">
               <p className="text-muted-foreground">No transfers found</p>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 className="mt-4"
                 onClick={() => router.push("/transaction?type=transfer")}
               >

@@ -1,7 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
-import { getAuthUser } from '@/lib/auth';
-import { getAvailableCredit, getCreditUtilization } from '@/lib/credit-card-utils';
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/db";
+import { DEV_USER_ID } from "@/lib/auth";
+import {
+  getAvailableCredit,
+  getCreditUtilization,
+} from "@/lib/credit-card-utils";
 
 // GET credit card statistics
 export async function GET(
@@ -9,22 +12,22 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = await getAuthUser(request);
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const userId = DEV_USER_ID;
 
     // Verify the account belongs to the user and is a credit card
     const account = await prisma.account.findUnique({
       where: {
         id: params.id,
-        userId: user.id,
-        type: 'credit',
+        userId,
+        type: "credit",
       },
     });
 
     if (!account) {
-      return NextResponse.json({ error: 'Credit card account not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: "Credit card account not found" },
+        { status: 404 }
+      );
     }
 
     // Get credit card statistics
@@ -35,10 +38,10 @@ export async function GET(
     const recentTransactions = await prisma.transaction.findMany({
       where: {
         accountId: params.id,
-        userId: user.id,
+        userId,
       },
       orderBy: {
-        date: 'desc',
+        date: "desc",
       },
       take: 5,
       include: {
@@ -54,9 +57,9 @@ export async function GET(
     const monthlySpending = await prisma.transaction.aggregate({
       where: {
         accountId: params.id,
-        userId: user.id,
-        type: 'credit',
-        creditType: 'borrowed',
+        userId,
+        type: "credit",
+        creditType: "borrowed",
         date: {
           gte: firstDayOfMonth,
           lte: lastDayOfMonth,
@@ -68,8 +71,10 @@ export async function GET(
     });
 
     // Calculate payment due information
-    const daysUntilDue = account.dueDate 
-      ? Math.ceil((account.dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+    const daysUntilDue = account.dueDate
+      ? Math.ceil(
+          (account.dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+        )
       : null;
 
     return NextResponse.json({
@@ -86,7 +91,10 @@ export async function GET(
       recentTransactions,
     });
   } catch (error) {
-    console.error('Error fetching credit card stats:', error);
-    return NextResponse.json({ error: 'Failed to fetch credit card statistics' }, { status: 500 });
+    console.error("Error fetching credit card stats:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch credit card statistics" },
+      { status: 500 }
+    );
   }
 }

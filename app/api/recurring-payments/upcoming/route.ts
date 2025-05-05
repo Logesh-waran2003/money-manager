@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { betterAuthInstance } from "@/lib/better-auth";
-import { getAuthUser } from "@/lib/auth";
+import { DEV_USER_ID } from "@/lib/auth";
 
 // GET upcoming recurring payments for the authenticated user
 export async function GET(request: NextRequest) {
   try {
-    const user = await getAuthUser(request);
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const userId = DEV_USER_ID;
 
     // Get query parameters
     const searchParams = request.nextUrl.searchParams;
@@ -24,7 +20,7 @@ export async function GET(request: NextRequest) {
     // Get active recurring payments due within the specified date range
     const upcomingPayments = await prisma.recurringPayment.findMany({
       where: {
-        userId: user.id,
+        userId,
         isActive: true,
         nextDueDate: {
           gte: today,

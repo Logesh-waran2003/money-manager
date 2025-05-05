@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getAuthUser } from "@/lib/auth";
+import { DEV_USER_ID } from "@/lib/auth";
 import { calculateNextDueDate } from "@/lib/utils/recurring-payment-utils";
 
 // POST to mark a recurring payment as complete and update the next due date
 export async function POST(request: NextRequest) {
   try {
-    const user = await getAuthUser(request);
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const userId = DEV_USER_ID;
 
     const data = await request.json();
 
@@ -25,7 +22,7 @@ export async function POST(request: NextRequest) {
     const recurringPayment = await prisma.recurringPayment.findUnique({
       where: {
         id: data.recurringPaymentId,
-        userId: user.id, // Ensure the payment belongs to the user
+        userId: userId, // Ensure the payment belongs to the user
       },
     });
 

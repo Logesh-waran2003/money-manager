@@ -30,13 +30,15 @@ import { ThemeToggle } from "@/components/theme-toggle";
 
 const Navbar = () => {
   const pathname = usePathname();
-  const { user, isAuthenticated, logout } = useAuthStore();
+  const { user, logout } = useAuthStore();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Don't show navbar on auth pages
   if (["/login", "/register", "/forgot-password"].includes(pathname)) {
     return null;
   }
+
+  const isAuthenticated = true;
 
   const navItems = [
     {

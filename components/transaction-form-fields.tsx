@@ -9,7 +9,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { CreditCard, Repeat, DollarSign, ArrowRightLeft } from "lucide-react";
 import CreditTransactionSelector from "@/components/credit-transaction-selector";
 import RecurringPaymentSelector from "@/components/recurring-payment-selector";
-import { useCreditStore } from "@/lib/stores/credit-store";
+import { CreditType, useCreditStore } from "@/lib/stores/credit-store";
 
 // Payment apps list
 const paymentApps = [
@@ -19,7 +19,7 @@ const paymentApps = [
   { value: "zelle", label: "Zelle" },
   { value: "applepay", label: "Apple Pay" },
   { value: "googlepay", label: "Google Pay" },
-  { value: "other", label: "Other" }
+  { value: "other", label: "Other" },
 ];
 
 interface TransactionFormFieldsProps {
@@ -31,7 +31,7 @@ interface TransactionFormFieldsProps {
   setAppUsed: (value: string) => void;
   transactionType: string;
   setTransactionType: (value: string) => void;
-  creditType: string;
+  creditType: CreditType;
   setCreditType: (value: string) => void;
   recurringName: string;
   setRecurringName: (value: string) => void;
@@ -75,7 +75,7 @@ const TransactionFormFields: React.FC<TransactionFormFieldsProps> = ({
   setSelectedCreditId = () => {},
   selectedRecurringPaymentId = "",
   setSelectedRecurringPaymentId = () => {},
-  onRecurringPaymentSelect = () => {}
+  onRecurringPaymentSelect = () => {},
 }) => {
   // Prefetch credits when component mounts - only once
   useEffect(() => {
@@ -87,7 +87,7 @@ const TransactionFormFields: React.FC<TransactionFormFieldsProps> = ({
         console.error("Error prefetching credits:", error);
       }
     };
-    
+
     fetchCredits();
   }, []); // Empty dependency array ensures this runs only once
 
@@ -132,37 +132,46 @@ const TransactionFormFields: React.FC<TransactionFormFieldsProps> = ({
           <div className="text-sm font-medium">Transaction Type</div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="flex items-center space-x-2 bg-background/50 p-2 rounded-md border border-border/50">
-              <Switch 
-                id="credit-toggle" 
-                checked={isCredit} 
+              <Switch
+                id="credit-toggle"
+                checked={isCredit}
                 onCheckedChange={handleCreditToggle}
               />
-              <Label htmlFor="credit-toggle" className="flex items-center gap-2 cursor-pointer">
-                <CreditCard className="h-4 w-4 text-primary" /> 
+              <Label
+                htmlFor="credit-toggle"
+                className="flex items-center gap-2 cursor-pointer"
+              >
+                <CreditCard className="h-4 w-4 text-primary" />
                 <span>Credit/Loan</span>
               </Label>
             </div>
-            
+
             <div className="flex items-center space-x-2 bg-background/50 p-2 rounded-md border border-border/50">
-              <Switch 
-                id="recurring-toggle" 
-                checked={isRecurring} 
+              <Switch
+                id="recurring-toggle"
+                checked={isRecurring}
                 onCheckedChange={handleRecurringToggle}
               />
-              <Label htmlFor="recurring-toggle" className="flex items-center gap-2 cursor-pointer">
-                <Repeat className="h-4 w-4 text-primary" /> 
+              <Label
+                htmlFor="recurring-toggle"
+                className="flex items-center gap-2 cursor-pointer"
+              >
+                <Repeat className="h-4 w-4 text-primary" />
                 <span>Recurring</span>
               </Label>
             </div>
 
             <div className="flex items-center space-x-2 bg-background/50 p-2 rounded-md border border-border/50">
-              <Switch 
-                id="transfer-toggle" 
-                checked={isTransfer} 
+              <Switch
+                id="transfer-toggle"
+                checked={isTransfer}
                 onCheckedChange={handleTransferToggle}
               />
-              <Label htmlFor="transfer-toggle" className="flex items-center gap-2 cursor-pointer">
-                <ArrowRightLeft className="h-4 w-4 text-primary" /> 
+              <Label
+                htmlFor="transfer-toggle"
+                className="flex items-center gap-2 cursor-pointer"
+              >
+                <ArrowRightLeft className="h-4 w-4 text-primary" />
                 <span>Transfer</span>
               </Label>
             </div>
@@ -172,7 +181,9 @@ const TransactionFormFields: React.FC<TransactionFormFieldsProps> = ({
         {/* Recurring Payment Selector - Only show when recurring is selected */}
         {isRecurring && (
           <div className="space-y-2">
-            <label className="text-sm font-medium">Select Existing Recurring Payment</label>
+            <label className="text-sm font-medium">
+              Select Existing Recurring Payment
+            </label>
             <RecurringPaymentSelector
               value={selectedRecurringPaymentId}
               onChange={setSelectedRecurringPaymentId}
@@ -180,12 +191,13 @@ const TransactionFormFields: React.FC<TransactionFormFieldsProps> = ({
                 // Auto-fill form fields based on selected recurring payment
                 if (payment) {
                   setRecurringName(payment.name);
-                  if (payment.counterparty) setCounterparty(payment.counterparty);
+                  if (payment.counterparty)
+                    setCounterparty(payment.counterparty);
                   // Pass complete payment object to parent component for additional field updates
                   const fullPayment = {
                     ...payment,
                     defaultAmount: payment.defaultAmount || payment.amount || 0,
-                    frequency: payment.frequency?.toLowerCase() || 'monthly'
+                    frequency: payment.frequency?.toLowerCase() || "monthly",
                   };
                   onRecurringPaymentSelect(fullPayment);
                 }
@@ -200,18 +212,25 @@ const TransactionFormFields: React.FC<TransactionFormFieldsProps> = ({
         {!isTransfer && (
           <div className="space-y-2">
             <label className="text-sm font-medium">
-              {isCredit ? 
-                (creditType === "lent" ? "Lent To" : "Borrowed From") : 
-                (direction === "sent" ? "Sent To" : "Received From")
-              }
+              {isCredit
+                ? creditType === "lent"
+                  ? "Lent To"
+                  : "Borrowed From"
+                : direction === "sent"
+                ? "Sent To"
+                : "Received From"}
             </label>
             <Input
               value={counterparty}
               onChange={(e) => setCounterparty(e.target.value)}
               placeholder={
-                isCredit ? 
-                  (creditType === "lent" ? "Enter recipient name..." : "Enter lender name...") : 
-                  (direction === "sent" ? "Enter recipient..." : "Enter sender...")
+                isCredit
+                  ? creditType === "lent"
+                    ? "Enter recipient name..."
+                    : "Enter lender name..."
+                  : direction === "sent"
+                  ? "Enter recipient..."
+                  : "Enter sender..."
               }
               className="bg-background/50 border-border/50 focus:border-primary/50 focus:ring-primary/20"
               required={!isTransfer}
@@ -222,24 +241,37 @@ const TransactionFormFields: React.FC<TransactionFormFieldsProps> = ({
         {isCredit && (
           <div className="space-y-2">
             <label className="text-sm font-medium">Credit Type</label>
-            <ToggleGroup type="single" value={creditType} onValueChange={setCreditType} className="justify-start">
-              <ToggleGroupItem value="lent" aria-label="Lent money" className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
+            <ToggleGroup
+              type="single"
+              value={creditType}
+              onValueChange={setCreditType}
+              className="justify-start"
+            >
+              <ToggleGroupItem
+                value="lent"
+                aria-label="Lent money"
+                className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+              >
                 I Lent Money
               </ToggleGroupItem>
-              <ToggleGroupItem value="borrowed" aria-label="Borrowed money" className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
+              <ToggleGroupItem
+                value="borrowed"
+                aria-label="Borrowed money"
+                className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+              >
                 I Borrowed Money
               </ToggleGroupItem>
             </ToggleGroup>
             <p className="text-xs text-muted-foreground mt-1">
-              {creditType === "lent" 
-                ? "Select this if you lent money to someone and they need to pay you back." 
+              {creditType === "lent"
+                ? "Select this if you lent money to someone and they need to pay you back."
                 : "Select this if you borrowed money from someone and you need to pay them back."}
             </p>
-            
+
             <div className="flex items-center space-x-2 mt-3">
-              <Switch 
-                id="repayment-toggle" 
-                checked={isRepayment} 
+              <Switch
+                id="repayment-toggle"
+                checked={isRepayment}
                 onCheckedChange={(checked) => {
                   setIsRepayment(checked);
                   if (!checked) {
@@ -251,10 +283,12 @@ const TransactionFormFields: React.FC<TransactionFormFieldsProps> = ({
                 This is a repayment for an existing credit
               </Label>
             </div>
-            
+
             {isRepayment && (
               <div className="mt-3 space-y-2 p-3 border border-border/50 rounded-md bg-background/50">
-                <label className="text-sm font-medium">Select Existing Credit</label>
+                <label className="text-sm font-medium">
+                  Select Existing Credit
+                </label>
                 <CreditTransactionSelector
                   value={selectedCreditId}
                   onChange={setSelectedCreditId}
@@ -265,7 +299,8 @@ const TransactionFormFields: React.FC<TransactionFormFieldsProps> = ({
                   }}
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Select the original credit transaction that this payment is for.
+                  Select the original credit transaction that this payment is
+                  for.
                 </p>
               </div>
             )}
@@ -275,11 +310,24 @@ const TransactionFormFields: React.FC<TransactionFormFieldsProps> = ({
         {!isCredit && !isTransfer && (
           <div className="space-y-2">
             <label className="text-sm font-medium">Transaction Direction</label>
-            <ToggleGroup type="single" value={direction} onValueChange={setDirection} className="justify-start">
-              <ToggleGroupItem value="sent" aria-label="Money sent" className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
+            <ToggleGroup
+              type="single"
+              value={direction}
+              onValueChange={setDirection}
+              className="justify-start"
+            >
+              <ToggleGroupItem
+                value="sent"
+                aria-label="Money sent"
+                className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+              >
                 Sent <DollarSign className="ml-1 h-4 w-4" />
               </ToggleGroupItem>
-              <ToggleGroupItem value="received" aria-label="Money received" className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
+              <ToggleGroupItem
+                value="received"
+                aria-label="Money received"
+                className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+              >
                 Received <DollarSign className="ml-1 h-4 w-4" />
               </ToggleGroupItem>
             </ToggleGroup>
@@ -288,7 +336,9 @@ const TransactionFormFields: React.FC<TransactionFormFieldsProps> = ({
 
         {isRecurring && (
           <div className="space-y-2">
-            <label className="text-sm font-medium">Recurring Payment Name</label>
+            <label className="text-sm font-medium">
+              Recurring Payment Name
+            </label>
             <Input
               value={recurringName}
               onChange={(e) => setRecurringName(e.target.value)}
@@ -298,7 +348,7 @@ const TransactionFormFields: React.FC<TransactionFormFieldsProps> = ({
             />
           </div>
         )}
-        
+
         {!isTransfer && (
           <div className="space-y-2">
             <label className="text-sm font-medium">App Used</label>

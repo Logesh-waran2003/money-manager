@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
-import { getAuthUser } from '@/lib/auth';
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/db";
+import { DEV_USER_ID } from "@/lib/auth";
 
 // GET a specific account by ID
 export async function GET(
@@ -8,26 +8,19 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = await getAuthUser(request);
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
+    const userId = DEV_USER_ID;
     const account = await prisma.account.findUnique({
-      where: {
-        id: params.id,
-        userId: user.id,
-      },
+      where: { id: params.id, userId },
     });
-
     if (!account) {
-      return NextResponse.json({ error: 'Account not found' }, { status: 404 });
+      return NextResponse.json({ error: "Account not found" }, { status: 404 });
     }
-
     return NextResponse.json(account);
   } catch (error) {
-    console.error('Error fetching account:', error);
-    return NextResponse.json({ error: 'Failed to fetch account' }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to fetch account" },
+      { status: 500 }
+    );
   }
 }
 
@@ -37,38 +30,24 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = await getAuthUser(request);
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
+    const userId = DEV_USER_ID;
     const data = await request.json();
-    
-    // If this is set as default, unset any existing default account
-    if (data.isDefault) {
-      await prisma.account.updateMany({
-        where: { 
-          userId: user.id,
-          isDefault: true,
-          id: { not: params.id } // Don't update the current account
-        },
-        data: { isDefault: false },
-      });
-    }
-
-    // Update the account
-    const account = await prisma.account.update({
-      where: {
-        id: params.id,
-        userId: user.id,
-      },
+    const updated = await prisma.account.updateMany({
+      where: { id: params.id, userId },
       data,
     });
-
+    if (updated.count === 0) {
+      return NextResponse.json({ error: "Account not found" }, { status: 404 });
+    }
+    const account = await prisma.account.findUnique({
+      where: { id: params.id, userId },
+    });
     return NextResponse.json(account);
   } catch (error) {
-    console.error('Error updating account:', error);
-    return NextResponse.json({ error: 'Failed to update account' }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to update account" },
+      { status: 500 }
+    );
   }
 }
 
@@ -78,25 +57,20 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = await getAuthUser(request);
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Instead of deleting, we'll deactivate the account
-    const account = await prisma.account.update({
-      where: {
-        id: params.id,
-        userId: user.id,
-      },
-      data: {
-        isActive: false,
-      },
+    const userId = DEV_USER_ID;
+    // Soft delete: set isActive to false
+    const updated = await prisma.account.updateMany({
+      where: { id: params.id, userId },
+      data: { isActive: false },
     });
-
-    return NextResponse.json({ message: 'Account deactivated successfully' });
+    if (updated.count === 0) {
+      return NextResponse.json({ error: "Account not found" }, { status: 404 });
+    }
+    return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error deactivating account:', error);
-    return NextResponse.json({ error: 'Failed to deactivate account' }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to delete account" },
+      { status: 500 }
+    );
   }
 }

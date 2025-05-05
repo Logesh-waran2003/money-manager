@@ -1,18 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { betterAuthInstance } from "@/lib/better-auth";
-import { getAuthUser } from "@/lib/auth";
+import { DEV_USER_ID } from "@/lib/auth";
 
 // GET all transactions for the authenticated user
 export async function GET(request: NextRequest) {
   try {
-    const user = await getAuthUser(request);
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+    const userId = DEV_USER_ID;
     const transactions = await prisma.transaction.findMany({
-      where: { userId: user.id },
+      where: { userId },
       include: {
         account: true,
         toAccount: true,
@@ -34,11 +29,7 @@ export async function GET(request: NextRequest) {
 // CREATE a new transaction
 export async function POST(request: NextRequest) {
   try {
-    const user = await getAuthUser(request);
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+    const userId = DEV_USER_ID;
     const data = await request.json();
 
     // Validate required fields
@@ -64,7 +55,7 @@ export async function POST(request: NextRequest) {
         // Create a Credit record first
         const credit = await prisma.credit.create({
           data: {
-            userId: user.id,
+            userId,
             name:
               data.description ||
               `${data.creditType === "lent" ? "Lent to" : "Borrowed from"} ${
@@ -97,7 +88,7 @@ export async function POST(request: NextRequest) {
     const transaction = await prisma.transaction.create({
       data: {
         ...data,
-        userId: user.id,
+        userId,
         date: new Date(data.date),
       },
       include: {

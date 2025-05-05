@@ -79,7 +79,7 @@ model Transaction {
   recurring          Boolean           @default(false)
   recurringFrequency String?
   recurringEndDate   DateTime?
-  direction          String?           // Transaction direction (sent/received) - used for all transaction types
+  direction          String? // Transaction direction (sent/received) - used for all transaction types
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
   appUsed            String?
@@ -107,8 +107,8 @@ model RecurringPayment {
   userId             String
   name               String
   defaultAmount      Float
-  frequency          String        // e.g., "Monthly", "Weekly", "Custom"
-  customIntervalDays Int?          // For custom schedules like every 84 days
+  frequency          String // e.g., "Monthly", "Weekly", "Custom"
+  customIntervalDays Int? // For custom schedules like every 84 days
   startDate          DateTime
   endDate            DateTime?
   nextDueDate        DateTime
@@ -116,7 +116,7 @@ model RecurringPayment {
   categoryId         String?
   counterparty       String?
   description        String?
-  direction          String?       // Direction of money flow (sent/received)
+  direction          String? // Direction of money flow (sent/received)
   isActive           Boolean       @default(true)
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt

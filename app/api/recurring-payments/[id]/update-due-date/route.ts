@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getAuthUser } from "@/lib/auth";
+import { DEV_USER_ID } from "@/lib/auth";
 
 /**
  * POST /api/recurring-payments/[id]/update-due-date
@@ -13,10 +13,7 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = await getAuthUser(request);
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const userId = DEV_USER_ID;
 
     // Check if the recurring payment exists
     const recurringPayment = await prisma.recurringPayment.findUnique({
@@ -33,7 +30,7 @@ export async function POST(
     }
 
     // Verify ownership
-    if (recurringPayment.userId !== user.id) {
+    if (recurringPayment.userId !== userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 

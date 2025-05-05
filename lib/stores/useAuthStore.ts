@@ -117,10 +117,13 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: () => {
+        // Clear all authentication-related state
         set({
           token: null,
           user: null,
           isAuthenticated: false,
+          isLoading: false,
+          error: null,
         });
       },
 

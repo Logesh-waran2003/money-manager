@@ -1,16 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getAuthUser } from "@/lib/auth";
+import { DEV_USER_ID } from "@/lib/auth";
 
 // GET /api/credits - Get all credit transactions for the current user
 export async function GET(request: NextRequest) {
   try {
-    const user = await getAuthUser(request);
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const userId = user.id;
+    const userId = DEV_USER_ID;
 
     // Get query parameters
     const searchParams = request.nextUrl.searchParams;
@@ -45,9 +40,20 @@ export async function GET(request: NextRequest) {
     }
 
     // Get credit records
-    type CreditWithTransactions = Awaited<
-      ReturnType<typeof prisma.credit.findFirst>
-    > & {
+    type CreditWithTransactions = {
+      id: string;
+      userId: string;
+      name: string;
+      amount: number;
+      type: string;
+      counterparty: string;
+      dueDate: Date | null;
+      notes: string | null;
+      createdAt: Date;
+      updatedAt: Date;
+      isPaid: boolean;
+      isFullySettled: boolean;
+      currentBalance: number;
       transactions: Array<{
         id: string;
         amount: number;
@@ -58,11 +64,9 @@ export async function GET(request: NextRequest) {
       }>;
     };
 
-    // Ensure transactions are always included in the query
-    // (no extra logic here, just keep the include as originally intended)
-    // The query.include is already set above, so nothing more is needed.
-
-    const credits = await prisma.credit.findMany(query);
+    const credits = (await prisma.credit.findMany(
+      query
+    )) as CreditWithTransactions[];
 
     // Transform the data to include calculated fields
     const transformedCredits = credits.map((credit) => {
@@ -129,12 +133,7 @@ export async function GET(request: NextRequest) {
 // POST /api/credits - Create a new credit transaction
 export async function POST(request: NextRequest) {
   try {
-    const user = await getAuthUser(request);
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const userId = user.id;
+    const userId = DEV_USER_ID;
     const data = await request.json();
 
     // Validate required fields

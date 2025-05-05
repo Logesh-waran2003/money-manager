@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,7 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { useAccountStore } from "@/lib/stores/account-store";
+import { useAccounts } from "@/lib/queries/accounts";
 import {
   Plus,
   CreditCard,
@@ -25,21 +25,7 @@ import { AccountToggle } from "@/components/AccountToggle";
 export default function AccountsPage() {
   const router = useRouter();
 
-  // Use the account store directly for accounts data
-  const { accounts, isLoading, error, fetchAccounts } = useAccountStore();
-
-  // Fetch accounts on component mount
-  // useEffect(() => {
-  //   const fetchData = async () => {
-  //     try {
-  //       await fetchAccounts();
-  //     } catch (error) {
-  //       console.error("Error fetching accounts:", error);
-  //     }
-  //   };
-
-  //   fetchData();
-  // }, [fetchAccounts]);
+  const { data: accounts, isLoading, error } = useAccounts();
 
   console.log("Accounts:", accounts);
   const getAccountIcon = (type: string) => {
