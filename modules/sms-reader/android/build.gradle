@@ -1,0 +1,16 @@
+apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
+
+android {
+  namespace "expo.modules.smsreader"
+  compileSdkVersion project.hasProperty('compileSdkVersion') ? project.compileSdkVersion : 34
+  defaultConfig {
+    minSdkVersion project.hasProperty('minSdkVersion') ? project.minSdkVersion : 23
+    targetSdkVersion project.hasProperty('targetSdkVersion') ? project.targetSdkVersion : 34
+  }
+}
+
+dependencies {
+  implementation project(':expo-modules-core')
+  implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:${getKotlinVersion()}"
+}

@@ -1,98 +1,131 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
-
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import { TransactionList } from "@/components/TransactionList";
+import * as Haptics from "expo-haptics";
+import { useEffect, useState } from "react";
+import { Alert, PermissionsAndroid, Platform, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import * as SmsReader from "sms-reader";
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    if (Platform.OS === "android") {
+      try {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.READ_SMS,
+          {
+            title: "Access SMS",
+            message: "We need access to your SMS to track your expenses.",
+            buttonNeutral: "Ask Me Later",
+            buttonNegative: "Cancel",
+            buttonPositive: "OK",
+          }
+        );
+        if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+          fetchSms();
+        } else {
+          Alert.alert(
+            "Permission Denied",
+            "Cannot track expenses without SMS access."
+          );
+          setLoading(false);
+        }
+      } catch (err) {
+        console.warn(err);
+        setLoading(false);
+      }
+    } else {
+      // Fallback for non-Android (dev/iOS)
+      console.log("Not Android, using mock data");
+      setTransactions(generateMockData());
+      setLoading(false);
+    }
+  };
+
+  const fetchSms = async () => {
+    try {
+      const smsList = SmsReader.getSms(50);
+      const parsed = await Promise.all(
+        smsList.map(async (sms: any) => {
+          const base = parseSms(sms);
+          // In a real app, we would batch this or run it in background
+          // For demo, we'll just categorize the first few or leave it for now to avoid rate limits/latency
+          // let category = await categorizeTransaction(base.merchant, base.rawBody);
+          return { ...base, isNew: true }; // Mark all as new for the demo breathing effect
+        })
+      );
+      setTransactions(parsed);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e) {
+      console.error("Failed to read SMS", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const parseSms = (sms: any) => {
+    // Basic regex to find amounts. This is a naive implementation for the "Weekend Build".
+    // Real implementation would use more robust regex or the Gemini API (Phase 4).
+    const amountRegex = /(?:Rs\.?|INR|₹)\s*(\d+(?:,\d+)*(?:\.\d{2})?)/i;
+    const match = sms.body.match(amountRegex);
+    const amount = match ? match[1] : "0.00";
+
+    // Determine type (Debit/Credit)
+    const isCredit =
+      sms.body.toLowerCase().includes("credited") ||
+      sms.body.toLowerCase().includes("received");
+
+    return {
+      id: sms.id,
+      merchant: sms.address, // Use sender as merchant for now
+      amount: `₹${amount}`,
+      date: new Date(parseInt(sms.date)).toLocaleDateString(),
+      category: "Uncategorized", // Will be filled by Gemini
+      type: isCredit ? "credit" : "debit",
+      rawBody: sms.body, // Keep for AI processing
+    };
+  };
+
+  const generateMockData = () => {
+    return Array.from({ length: 20 }).map((_, i) => ({
+      id: i.toString(),
+      merchant: i % 2 === 0 ? "Uber" : "Starbucks",
+      amount: `$${(Math.random() * 100).toFixed(2)}`,
+      date: "Today, 10:23 AM",
+      category: i % 2 === 0 ? "Transport" : "Food",
+      type: i % 5 === 0 ? "credit" : "debit",
+    }));
+  };
+
+  return (
+    <SafeAreaView className="flex-1 bg-zinc-950" edges={["top"]}>
+      <View className="px-6 py-4">
+        <Text className="text-zinc-400 text-sm font-medium uppercase tracking-widest mb-1">
+          Total Balance
+        </Text>
+        <Text className="text-white text-4xl font-bold tracking-tighter mb-6">
+          {/* Simple sum for demo */}₹
+          {transactions
+            .reduce((acc, curr) => {
+              const val = parseFloat(curr.amount.replace(/[^0-9.-]+/g, ""));
+              return curr.type === "credit" ? acc + val : acc - val;
+            }, 0)
+            .toFixed(2)}
+        </Text>
+
+        <Text className="text-white text-lg font-semibold mb-4">
+          Recent Transactions
+        </Text>
+      </View>
+
+      <View className="flex-1">
+        <TransactionList data={transactions} />
+      </View>
+    </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
-});

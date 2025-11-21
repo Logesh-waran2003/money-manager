@@ -1,0 +1,8 @@
+{
+  "name": "sms-reader",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "dependencies": {
+    "expo-modules-core": "~2.2.0"
+  }
+}
