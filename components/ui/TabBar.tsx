@@ -1,16 +1,16 @@
 import { Ionicons } from "@expo/vector-icons";
 import { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import * as Haptics from "expo-haptics";
-import { TouchableOpacity, View } from "react-native";
+import { StyleSheet, TouchableOpacity, View } from "react-native";
 import Animated from "react-native-reanimated";
 
 export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   return (
-    <View className="absolute bottom-8 left-4 right-4 h-20 rounded-3xl overflow-hidden bg-zinc-900/90 border border-white/10 shadow-2xl shadow-black">
-      {/* Glassmorphism Background - simplified for stability, can add BlurView if needed */}
-      <View className="absolute inset-0 bg-zinc-900/80 backdrop-blur-xl" />
+    <View style={styles.container}>
+      {/* Glassmorphism Background */}
+      <View style={styles.blurBackground} />
 
-      <View className="flex-row items-center justify-between h-full px-2">
+      <View style={styles.tabRow}>
         {state.routes.map((route, index) => {
           const { options } = descriptors[route.key];
           const isFocused = state.index === index;
@@ -42,23 +42,13 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
               accessibilityLabel={options.tabBarAccessibilityLabel}
               testID={(options as any).tabBarTestID}
               onPress={onPress}
-              className="flex-1 items-center justify-center h-full"
+              style={styles.tabButton}
             >
               <Animated.View
-                className={`items-center justify-center w-12 h-12 rounded-full ${
-                  isFocused ? "bg-zinc-800" : ""
-                }`}
-                style={
-                  isFocused
-                    ? {
-                        shadowColor: "#00FF94",
-                        shadowOffset: { width: 0, height: 0 },
-                        shadowOpacity: 0.5,
-                        shadowRadius: 10,
-                        elevation: 5,
-                      }
-                    : {}
-                }
+                style={[
+                  styles.iconContainer,
+                  isFocused && styles.iconContainerFocused,
+                ]}
               >
                 <Ionicons
                   name={isFocused ? iconName : (`${iconName}-outline` as any)}
@@ -73,3 +63,59 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    position: "absolute",
+    bottom: 32,
+    left: 16,
+    right: 16,
+    height: 80,
+    borderRadius: 24,
+    backgroundColor: "rgba(24, 24, 27, 0.9)", // zinc-900/90
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 10,
+    overflow: "hidden",
+  },
+  blurBackground: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(24, 24, 27, 0.8)",
+  },
+  tabRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    height: "100%",
+    paddingHorizontal: 8,
+  },
+  tabButton: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    height: "100%",
+  },
+  iconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  iconContainerFocused: {
+    backgroundColor: "#27272a", // zinc-800
+    shadowColor: "#00FF94",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+});

@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useEffect } from "react";
-import { Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -46,25 +46,18 @@ export function TransactionCard({
   }));
 
   return (
-    <View className="w-full mb-4 p-4 rounded-2xl bg-zinc-900 border border-white/5 shadow-lg shadow-black/50 overflow-hidden">
-      {isNew && (
-        <Animated.View
-          className="absolute inset-0 bg-neon-primary/10"
-          style={glowStyle}
-        />
-      )}
-      <View className="flex-row items-center justify-between">
-        <View className="flex-row items-center gap-4">
+    <View style={styles.card}>
+      {isNew && <Animated.View style={[styles.glow, glowStyle]} />}
+      <View style={styles.row}>
+        <View style={styles.leftContent}>
           {/* Category Icon Placeholder - Neon Glow */}
-          <View className="w-10 h-10 rounded-full bg-zinc-800 items-center justify-center border border-white/5 shadow-sm shadow-neon-primary/20">
+          <View style={styles.iconContainer}>
             <Ionicons name="cart-outline" size={20} color="#00FF94" />
           </View>
 
           <View>
-            <Text className="text-white font-bold text-base tracking-tight">
-              {merchant}
-            </Text>
-            <Text className="text-zinc-500 text-xs">
+            <Text style={styles.merchantText}>{merchant}</Text>
+            <Text style={styles.dateText}>
               {date} • {category}
             </Text>
           </View>
@@ -72,9 +65,10 @@ export function TransactionCard({
 
         <View>
           <Text
-            className={`font-bold text-lg tracking-tighter ${
-              type === "credit" ? "text-neon-primary" : "text-white"
-            }`}
+            style={[
+              styles.amountText,
+              { color: type === "credit" ? "#00FF94" : "white" },
+            ]}
           >
             {type === "debit" ? "-" : "+"}
             {amount}
@@ -84,3 +78,69 @@ export function TransactionCard({
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  card: {
+    width: "100%",
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: "#18181b", // zinc-900
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.05)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 5,
+    overflow: "hidden",
+  },
+  glow: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 255, 148, 0.1)", // neon-primary/10
+  },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  leftContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+  },
+  iconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#27272a", // zinc-800
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.05)",
+    shadowColor: "#00FF94",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+  },
+  merchantText: {
+    color: "white",
+    fontWeight: "bold",
+    fontSize: 16,
+    letterSpacing: -0.5,
+  },
+  dateText: {
+    color: "#71717a", // zinc-500
+    fontSize: 12,
+    marginTop: 2,
+  },
+  amountText: {
+    fontWeight: "bold",
+    fontSize: 18,
+    letterSpacing: -1,
+  },
+});

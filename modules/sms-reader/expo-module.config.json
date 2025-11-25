@@ -2,6 +2,6 @@
   "platforms": ["android"],
   "android": {
     "package": "expo.modules.smsreader",
-    "modules": ["SmsReaderModule"]
+    "modules": ["expo.modules.smsreader.SmsReaderModule"]
   }
 }

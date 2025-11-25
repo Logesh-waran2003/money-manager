@@ -1,7 +1,15 @@
 import { TransactionList } from "@/components/TransactionList";
+import { categorizeTransaction } from "@/services/gemini";
 import * as Haptics from "expo-haptics";
 import { useEffect, useState } from "react";
-import { Alert, PermissionsAndroid, Platform, Text, View } from "react-native";
+import {
+  Alert,
+  PermissionsAndroid,
+  Platform,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as SmsReader from "sms-reader";
 
@@ -49,17 +57,26 @@ export default function HomeScreen() {
 
   const fetchSms = async () => {
     try {
-      const smsList = SmsReader.getSms(50);
-      const parsed = await Promise.all(
-        smsList.map(async (sms: any) => {
-          const base = parseSms(sms);
-          // In a real app, we would batch this or run it in background
-          // For demo, we'll just categorize the first few or leave it for now to avoid rate limits/latency
-          // let category = await categorizeTransaction(base.merchant, base.rawBody);
-          return { ...base, isNew: true }; // Mark all as new for the demo breathing effect
+      const smsList = SmsReader.getSms(20); // Fetch last 20
+
+      // 1. Parse all locally first
+      const parsed = smsList.map((sms: any) => parseSms(sms));
+
+      // 2. Categorize only the top 5 to save API quota
+      const categorized = await Promise.all(
+        parsed.map(async (tx, index) => {
+          if (index < 5 && tx.type === "debit") {
+            const category = await categorizeTransaction(
+              tx.merchant,
+              tx.rawBody
+            );
+            return { ...tx, category, isNew: true };
+          }
+          return { ...tx, isNew: true };
         })
       );
-      setTransactions(parsed);
+
+      setTransactions(categorized);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
       console.error("Failed to read SMS", e);
@@ -103,12 +120,10 @@ export default function HomeScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-zinc-950" edges={["top"]}>
-      <View className="px-6 py-4">
-        <Text className="text-zinc-400 text-sm font-medium uppercase tracking-widest mb-1">
-          Total Balance
-        </Text>
-        <Text className="text-white text-4xl font-bold tracking-tighter mb-6">
+    <SafeAreaView style={styles.container} edges={["top"]}>
+      <View style={styles.header}>
+        <Text style={styles.label}>Total Balance</Text>
+        <Text style={styles.balance}>
           {/* Simple sum for demo */}₹
           {transactions
             .reduce((acc, curr) => {
@@ -118,14 +133,47 @@ export default function HomeScreen() {
             .toFixed(2)}
         </Text>
 
-        <Text className="text-white text-lg font-semibold mb-4">
-          Recent Transactions
-        </Text>
+        <Text style={styles.sectionTitle}>Recent Transactions</Text>
       </View>
 
-      <View className="flex-1">
+      <View style={styles.listContainer}>
         <TransactionList data={transactions} />
       </View>
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#09090B", // zinc-950
+  },
+  header: {
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+  },
+  label: {
+    color: "#a1a1aa", // zinc-400
+    fontSize: 14,
+    fontWeight: "500",
+    textTransform: "uppercase",
+    letterSpacing: 2, // tracking-widest
+    marginBottom: 4,
+  },
+  balance: {
+    color: "white",
+    fontSize: 36, // 4xl
+    fontWeight: "bold",
+    letterSpacing: -1.5, // tracking-tighter
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    color: "white",
+    fontSize: 18, // lg
+    fontWeight: "600",
+    marginBottom: 16,
+  },
+  listContainer: {
+    flex: 1,
+  },
+});
