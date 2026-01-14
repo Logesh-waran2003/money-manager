@@ -1,61 +1,58 @@
+import { AccountCreationModal } from "@/components/inbox/AccountCreationModal";
+import { SmsListItem } from "@/components/inbox/SmsListItem";
+import { TransactionModal } from "@/components/inbox/TransactionModal";
+import { useSmsProcessor } from "@/hooks/useSmsProcessor";
 import {
-  addTransaction,
   exportSmsAnalysis,
   getSmartDetails,
   getUnprocessedSms,
   ignoreSms,
-  syncPendingTransactions,
   testImprovedParsing,
+  unIgnoreSms,
   UnprocessedSms,
 } from "@/services/SmsService";
-import {
-  findAccount,
-  createAccount,
-  findMerchant,
-  createMerchant,
-  updateAccountBalance,
-  getAllAccounts,
-} from "@/services/db";
+import { getAllAccounts, saveFeedback } from "@/services/db";
 import { Ionicons } from "@expo/vector-icons";
-import * as Crypto from "expo-crypto";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   FlatList,
-  Modal,
+  LayoutAnimation,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
+  UIManager,
   View,
 } from "react-native";
-import Swipeable from "react-native-gesture-handler/Swipeable";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-const BANKS = ["HDFC Bank", "Axis Bank", "SBI", "ICICI Bank", "Kotak Bank", "Other"];
+const BANKS = [
+  "HDFC Bank",
+  "Axis Bank",
+  "SBI",
+  "ICICI Bank",
+  "Kotak Bank",
+  "Other",
+];
+
+type FilterType = "inbox" | "transactions" | "ignored" | "all";
 
 export default function InboxScreen() {
   const [smsList, setSmsList] = useState<UnprocessedSms[]>([]);
+  const [accounts, setAccounts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [selectedSms, setSelectedSms] = useState<UnprocessedSms | null>(null);
-  
-  // Account creation modal
-  const [accountModalVisible, setAccountModalVisible] = useState(false);
-  const [newAccountData, setNewAccountData] = useState<any>(null);
-  const [selectedBank, setSelectedBank] = useState("");
+  const [filter, setFilter] = useState<FilterType>("inbox");
 
-  // Form State
-  const [amount, setAmount] = useState("");
-  const [merchant, setMerchant] = useState("");
-  const [remarks, setRemarks] = useState("");
-  const [category, setCategory] = useState("");
-  const [accountId, setAccountId] = useState("");
-  const [accountNickname, setAccountNickname] = useState("");
-  const [accountType, setAccountType] = useState("savings");
+  // Advanced filters
+  const [showFilters, setShowFilters] = useState(false);
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
+
+  const processor = useSmsProcessor();
 
   useEffect(() => {
     loadSms();
@@ -63,22 +60,19 @@ export default function InboxScreen() {
 
   const loadSms = async () => {
     setLoading(true);
-    const list = await getUnprocessedSms();
+    const [list, accountsList] = await Promise.all([
+      getUnprocessedSms(),
+      getAllAccounts(),
+    ]);
     setSmsList(list);
+    setAccounts(accountsList);
     setLoading(false);
-  };
-
-  const handleSync = async () => {
-    setSyncing(true);
-    await syncPendingTransactions();
-    Alert.alert("Sync", "Sync completed successfully.");
-    setSyncing(false);
   };
 
   const handleTestParsing = () => {
     testImprovedParsing();
     Alert.alert(
-      "Parsing Test Complete", 
+      "Parsing Test Complete",
       "Check your terminal/console for detailed parsing results of sample SMS messages.",
       [{ text: "OK" }]
     );
@@ -86,523 +80,466 @@ export default function InboxScreen() {
 
   const handleExportSms = async () => {
     try {
-      console.log("Starting SMS export...");
       const result = await exportSmsAnalysis();
-      
-      if (result.method === 'SAF') {
+
+      if (result.method === "SAF") {
         Alert.alert(
-          "Export Complete!", 
+          "Export Complete!",
           `Successfully exported ${result.count} banking SMS messages to your chosen location.\n\nFile: ${result.fileName}`,
           [{ text: "OK" }]
         );
       } else {
         Alert.alert(
-          "Export to Console", 
+          "Export to Console",
           `Exported ${result.count} SMS to console.\n\nCopy the JSON data from your terminal and save it to a file.`,
           [{ text: "OK" }]
         );
       }
     } catch (error) {
-      Alert.alert("Export Failed", "Could not export SMS data. Please try again.");
+      Alert.alert(
+        "Export Failed",
+        "Could not export SMS data. Please try again."
+      );
     }
   };
 
-  const handleExport = () => {
-    const { transactions, ignored } =
-      require("@/services/SmsService").exportDbData();
-    console.log(
-      `Exported ${transactions.length} transactions and ${ignored.length} ignored items.`
-    );
-    Alert.alert(
-      "Data Exported",
-      "Check your terminal/console for the JSON dump."
-    );
-  };
-
-  const openModal = async (sms: UnprocessedSms) => {
-    setSelectedSms(sms);
-
-    // Use smart parsing
-    const parsed = getSmartDetails(sms.body, sms.address);
-    
-    setAmount(parsed.amount);
-    setMerchant(parsed.merchant);
-    setCategory(parsed.category);
-    setRemarks("");
-
-    // Check if account exists
-    if (parsed.bank && parsed.account) {
-      const account: any = findAccount(parsed.bank, parsed.account);
-      
-      if (!account) {
-        // Show account creation modal
-        setNewAccountData({
-          bank: parsed.bank,
-          last4: parsed.account,
-          type: parsed.cardLast4 ? "credit_card" : "savings",
-          nickname: `${parsed.bank} *${parsed.account}`
-        });
-        setSelectedBank(parsed.bank); // Pre-select detected bank
-        setAccountNickname(`${parsed.bank} *${parsed.account}`);
-        setAccountType(parsed.cardLast4 ? "credit_card" : "savings");
-        setAccountModalVisible(true);
-        return; // Don't open transaction modal yet
-      } else {
-        setAccountId(account.id);
-      }
-    }
-
-    // Check/create merchant silently
-    if (parsed.merchant) {
-      let merchantRecord: any = findMerchant(parsed.merchant);
-      if (!merchantRecord) {
-        const merchantId = Crypto.randomUUID();
-        createMerchant({
-          id: merchantId,
-          name: parsed.merchant,
-          default_category: parsed.category
-        });
-      }
-    }
-
-    setModalVisible(true);
-  };
-
-  const handleCreateAccount = () => {
-    if (!accountNickname.trim()) {
-      Alert.alert("Error", "Please enter account nickname");
-      return;
-    }
-
-    if (!selectedBank) {
-      Alert.alert("Error", "Please select a bank");
-      return;
-    }
-
-    const accountId = Crypto.randomUUID();
-    createAccount({
-      id: accountId,
-      bank_name: selectedBank,
-      account_last4: newAccountData.last4,
-      account_type: accountType,
-      nickname: accountNickname
-    });
-
-    setAccountId(accountId);
-    setAccountModalVisible(false);
-    
-    // Now open transaction modal
-    setModalVisible(true);
-  };
-
-  const handleIgnore = (smsId: string) => {
+  const handleIgnore = async (smsId: string) => {
     try {
-      ignoreSms(smsId);
-      // Small delay to allow animation to feel natural before unmounting
-      setTimeout(() => {
-        setSmsList((prev) => prev.filter((s) => s.id !== smsId));
-      }, 200);
+      await ignoreSms(smsId);
+      // Mark as ignored locally
+      setSmsList((prev) =>
+        prev.map((s) => (s.id === smsId ? { ...s, isIgnored: true } : s))
+      );
 
-      // If modal was open for this item, close it
-      if (selectedSms?.id === smsId) {
-        setModalVisible(false);
+      if (processor.selectedSms?.id === smsId) {
+        processor.setModalVisible(false);
       }
     } catch (error) {
       Alert.alert("Error", "Failed to ignore SMS");
     }
   };
 
-  const handleConfirm = async () => {
-    if (!selectedSms || !amount) {
-      Alert.alert("Missing Info", "Please enter amount");
-      return;
-    }
-
-    if (!accountId) {
-      Alert.alert("Missing Account", "Account is required");
-      return;
-    }
-
+  const handleRestore = async (smsId: string) => {
     try {
-      // Find merchant_id if merchant name provided
-      let merchantId = null;
-      if (merchant) {
-        const merchantRecord: any = findMerchant(merchant);
-        if (merchantRecord) {
-          merchantId = merchantRecord.id;
-        }
+      await unIgnoreSms(smsId);
+      // Unmark as ignored locally
+      setSmsList((prev) =>
+        prev.map((s) => (s.id === smsId ? { ...s, isIgnored: false } : s))
+      );
+    } catch (error) {
+      Alert.alert("Error", "Failed to restore SMS");
+    }
+  };
+
+  const handleConfirmTransaction = async () => {
+    const success = await processor.handleConfirmTransaction(() => {
+      // Mark as processed immediately so it moves to "transactions" tab
+      if (processor.selectedSms) {
+        setSmsList((prev) =>
+          prev.map((s) =>
+            s.id === processor.selectedSms!.id ? { ...s, isProcessed: true } : s
+          )
+        );
+      }
+    });
+
+    if (success) {
+      processor.resetForm();
+    }
+  };
+
+  const handleCreateAccount = async () => {
+    await processor.handleCreateAccount(async () => {
+      const updatedAccounts = await getAllAccounts();
+      setAccounts(updatedAccounts);
+    });
+  };
+
+  const getAccountNickname = () => {
+    if (!processor.accountId) return "No account selected";
+    const account = accounts.find((a: any) => a.id === processor.accountId);
+    return account ? account.nickname : "Unknown Account";
+  };
+
+  const handleMarkAsNotTransaction = async (
+    smsId: string,
+    merchant: string,
+    body: string
+  ) => {
+    try {
+      await saveFeedback({
+        id: `${smsId}-feedback`,
+        sms_body: body,
+        merchant,
+        is_transaction: false,
+      });
+      await ignoreSms(smsId);
+      setSmsList((prev) =>
+        prev.map((s) => (s.id === smsId ? { ...s, isIgnored: true } : s))
+      );
+      processor.setModalVisible(false);
+      Alert.alert("Feedback Saved", "This SMS will be ignored in future");
+    } catch (error) {
+      Alert.alert("Error", "Failed to save feedback");
+    }
+  };
+
+  const handleMarkAsTransaction = async (
+    smsId: string,
+    merchant: string,
+    body: string
+  ) => {
+    try {
+      await saveFeedback({
+        id: `${smsId}-feedback`,
+        sms_body: body,
+        merchant,
+        is_transaction: true,
+      });
+      Alert.alert(
+        "Feedback Saved",
+        "Similar SMS will be detected as transactions"
+      );
+    } catch (error) {
+      Alert.alert("Error", "Failed to save feedback");
+    }
+  };
+
+  const toggleAccountFilter = (accountId: string) => {
+    setSelectedAccounts((prev) =>
+      prev.includes(accountId)
+        ? prev.filter((id) => id !== accountId)
+        : [...prev, accountId]
+    );
+  };
+
+  const clearFilters = () => {
+    setFromDate("");
+    setToDate("");
+    setSelectedAccounts([]);
+  };
+
+  const filteredSms = smsList.filter((item) => {
+    // Status filter
+    if (filter === "inbox" && (item.isIgnored || item.isProcessed))
+      return false;
+    if (filter === "transactions" && !item.isProcessed) return false;
+    if (filter === "ignored" && !item.isIgnored) return false;
+
+    // Date range filter
+    if (fromDate) {
+      const itemDate = new Date(parseInt(item.date));
+      const from = new Date(fromDate);
+      from.setHours(0, 0, 0, 0);
+      if (itemDate < from) return false;
+    }
+    if (toDate) {
+      const itemDate = new Date(parseInt(item.date));
+      const to = new Date(toDate);
+      to.setHours(23, 59, 59, 999);
+      if (itemDate > to) return false;
+    }
+
+    // Account filter
+    if (selectedAccounts.length > 0) {
+      const parsed = getSmartDetails(item.body, item.address);
+
+      const matchesKnownAccount = accounts.some(
+        (acc) =>
+          parsed.bank === acc.bank_name &&
+          (parsed.account === acc.account_last4 ||
+            parsed.cardLast4 === acc.account_last4)
+      );
+
+      // If ONLY "unknown" is selected, show only unmatched
+      if (
+        selectedAccounts.length === 1 &&
+        selectedAccounts.includes("unknown")
+      ) {
+        return !matchesKnownAccount;
       }
 
-      const parsed = getSmartDetails(selectedSms.body, selectedSms.address);
-      const txnType = parsed.type;
+      // If "unknown" + other accounts selected
+      if (selectedAccounts.includes("unknown")) {
+        if (!matchesKnownAccount) return true; // Show unmatched
+      }
 
-      await addTransaction({
-        id: Crypto.randomUUID(),
-        mobile_id: selectedSms.id,
-        amount: parseFloat(amount),
-        merchant: merchant || "",
-        category: category || "others",
-        date: new Date(parseInt(selectedSms.date)).toISOString(),
-        type: txnType,
-        raw_body: selectedSms.body,
-        remarks: remarks,
-        account_id: accountId,
-        merchant_id: merchantId
-      });
-
-      // Update account balance
-      updateAccountBalance(accountId, parseFloat(amount), txnType);
-
-      setSmsList((prev) => prev.filter((s) => s.id !== selectedSms.id));
-      setModalVisible(false);
-    } catch (error) {
-      console.error(error);
-      Alert.alert("Error", "Failed to save transaction");
+      // Check if SMS matches any selected account (excluding "unknown")
+      const selectedAccountIds = selectedAccounts.filter(
+        (id) => id !== "unknown"
+      );
+      if (selectedAccountIds.length > 0) {
+        const matchesSelectedAccount = accounts.some(
+          (acc) =>
+            selectedAccountIds.includes(acc.id) &&
+            parsed.bank === acc.bank_name &&
+            (parsed.account === acc.account_last4 ||
+              parsed.cardLast4 === acc.account_last4)
+        );
+        return matchesSelectedAccount;
+      }
     }
-  };
 
-  const renderRightActions = (
-    progress: any,
-    dragX: any,
-    item: UnprocessedSms
-  ) => {
-    return (
-      <View style={styles.rightAction}>
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => handleIgnore(item.id)}
-        >
-          <Ionicons name="trash-outline" size={24} color="white" />
-          <Text style={styles.actionText}>Spam</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  };
+    return true;
+  });
 
-  const renderItem = ({ item }: { item: UnprocessedSms }) => {
-    const parsed = getSmartDetails(item.body, item.address);
-    const isTransaction = parsed.isTransaction;
-    
-    return (
-      <Swipeable
-        renderRightActions={(progress, dragX) =>
-          renderRightActions(progress, dragX, item)
-        }
-      >
-        <TouchableOpacity style={styles.item} onPress={() => openModal(item)}>
-          <View style={styles.itemHeader}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Text style={styles.sender}>{item.address}</Text>
-              {isTransaction ? (
-                <Ionicons name="checkmark-circle" size={16} color="#10b981" />
-              ) : (
-                <Ionicons name="alert-circle-outline" size={16} color="#f59e0b" />
-              )}
-            </View>
-            <Text style={styles.date}>
-              {new Date(parseInt(item.date)).toLocaleDateString()}
-            </Text>
-          </View>
-          <Text style={styles.body} numberOfLines={2}>
-            {item.body}
-          </Text>
-          {isTransaction && parsed.amount && (
-            <View style={{ flexDirection: "row", gap: 8, marginTop: 4 }}>
-              <Text style={{ fontSize: 12, color: "#10b981", fontWeight: "600" }}>
-                ₹{parsed.amount}
-              </Text>
-              {parsed.merchant && (
-                <Text style={{ fontSize: 12, color: "#6b7280" }}>
-                  • {parsed.merchant}
-                </Text>
-              )}
-              {parsed.category && (
-                <Text style={{ fontSize: 12, color: "#8b5cf6" }}>
-                  • {parsed.category}
-                </Text>
-              )}
-            </View>
-          )}
-        </TouchableOpacity>
-      </Swipeable>
-    );
+  /* Enable LayoutAnimation for Android */
+  if (
+    Platform.OS === "android" &&
+    UIManager.setLayoutAnimationEnabledExperimental
+  ) {
+    UIManager.setLayoutAnimationEnabledExperimental(true);
+  }
+
+  const toggleFilters = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setShowFilters(!showFilters);
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
+      {/* Header */}
       <View style={styles.header}>
-        <View style={{ width: 24 }} />
-        <Text style={styles.headerTitle}>Inbox</Text>
-        <View style={{ flexDirection: "row", gap: 16 }}>
-          <TouchableOpacity onPress={handleTestParsing}>
-            <Ionicons name="flask-outline" size={24} color="#10b981" />
+        <View>
+          <Text style={styles.headerTitle}>Inbox</Text>
+          <Text style={styles.headerSubtitle}>
+            {loading ? "Syncing..." : `${filteredSms.length} transactions`}
+          </Text>
+        </View>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            onPress={toggleFilters}
+            style={[
+              styles.iconButton,
+              (fromDate || toDate || selectedAccounts.length > 0) &&
+                styles.iconButtonActive,
+            ]}
+          >
+            <Ionicons name="filter-outline" size={20} color="#a855f7" />
           </TouchableOpacity>
-          <TouchableOpacity onPress={handleExportSms}>
-            <Ionicons name="download-outline" size={24} color="#a855f7" />
+          <TouchableOpacity
+            onPress={handleTestParsing}
+            style={styles.iconButton}
+          >
+            <Ionicons name="flask-outline" size={20} color="#a855f7" />
           </TouchableOpacity>
-          <TouchableOpacity onPress={handleExport}>
-            <Ionicons name="document-text-outline" size={24} color="#a855f7" />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handleSync} disabled={syncing}>
-            {syncing ? (
-              <ActivityIndicator size="small" color="#a855f7" />
-            ) : (
-              <Ionicons name="cloud-upload-outline" size={24} color="#a855f7" />
-            )}
+          <TouchableOpacity onPress={handleExportSms} style={styles.iconButton}>
+            <Ionicons name="download-outline" size={20} color="#a855f7" />
           </TouchableOpacity>
         </View>
       </View>
 
-      {loading ? (
+      {/* Filter Tabs - Moved above Advanced Filters for better context hierarchy */}
+      <View style={styles.filterContainer}>
+        {["inbox", "transactions", "ignored", "all"].map((f) => (
+          <TouchableOpacity
+            key={f}
+            style={[styles.filterTab, filter === f && styles.filterTabActive]}
+            onPress={() => setFilter(f as FilterType)}
+          >
+            <Text
+              style={[
+                styles.filterTabText,
+                filter === f && styles.filterTabTextActive,
+              ]}
+            >
+              {f.charAt(0).toUpperCase() + f.slice(1)}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* Advanced Filters */}
+      {showFilters && (
+        <View style={styles.advancedFilters}>
+          {/* Date Range */}
+          <View style={styles.filterSection}>
+            <Text style={styles.filterLabel}>Date Range</Text>
+            <View style={styles.dateRow}>
+              <TouchableOpacity
+                style={styles.dateButton}
+                onPress={() => {
+                  const today = new Date();
+                  const weekAgo = new Date(
+                    today.getTime() - 7 * 24 * 60 * 60 * 1000
+                  );
+                  setFromDate(weekAgo.toISOString().split("T")[0]);
+                  setToDate(today.toISOString().split("T")[0]);
+                }}
+              >
+                <Text style={styles.dateButtonLabel}>Last 7 Days</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.dateButton}
+                onPress={() => {
+                  const today = new Date();
+                  const monthAgo = new Date(
+                    today.getTime() - 30 * 24 * 60 * 60 * 1000
+                  );
+                  setFromDate(monthAgo.toISOString().split("T")[0]);
+                  setToDate(today.toISOString().split("T")[0]);
+                }}
+              >
+                <Text style={styles.dateButtonLabel}>Last 30 Days</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.dateButton}
+                onPress={() => {
+                  const today = new Date();
+                  const start = new Date(
+                    today.getFullYear(),
+                    today.getMonth(),
+                    1
+                  );
+                  setFromDate(start.toISOString().split("T")[0]);
+                  setToDate(today.toISOString().split("T")[0]);
+                }}
+              >
+                <Text style={styles.dateButtonLabel}>This Month</Text>
+              </TouchableOpacity>
+            </View>
+            {(fromDate || toDate) && (
+              <Text style={styles.dateRangeText}>
+                {fromDate || "..."} to {toDate || "..."}
+              </Text>
+            )}
+          </View>
+
+          {/* Account Filter */}
+          <View style={styles.filterSection}>
+            <Text style={styles.filterLabel}>Accounts</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.accountChips}
+            >
+              <TouchableOpacity
+                style={[
+                  styles.accountChip,
+                  selectedAccounts.includes("unknown") &&
+                    styles.accountChipActive,
+                ]}
+                onPress={() => toggleAccountFilter("unknown")}
+              >
+                <Text
+                  style={[
+                    styles.accountChipText,
+                    selectedAccounts.includes("unknown") &&
+                      styles.accountChipTextActive,
+                  ]}
+                >
+                  Unknown
+                </Text>
+              </TouchableOpacity>
+              {accounts.map((acc) => (
+                <TouchableOpacity
+                  key={acc.id}
+                  style={[
+                    styles.accountChip,
+                    selectedAccounts.includes(acc.id) &&
+                      styles.accountChipActive,
+                  ]}
+                  onPress={() => toggleAccountFilter(acc.id)}
+                >
+                  <Text
+                    style={[
+                      styles.accountChipText,
+                      selectedAccounts.includes(acc.id) &&
+                        styles.accountChipTextActive,
+                    ]}
+                  >
+                    {acc.nickname}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+
+          {/* Clear Filters */}
+          {(fromDate || toDate || selectedAccounts.length > 0) && (
+            <TouchableOpacity
+              style={styles.clearFiltersButton}
+              onPress={clearFilters}
+            >
+              <Ionicons name="close-circle" size={16} color="#ef4444" />
+              <Text style={styles.clearFiltersText}>Clear Filters</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
+      {/* SMS List */}
+      {loading && smsList.length === 0 ? (
         <View style={styles.center}>
           <ActivityIndicator size="large" color="#a855f7" />
+          <Text style={styles.loadingText}>Analyzing SMS...</Text>
         </View>
       ) : (
         <FlatList
-          data={smsList}
-          renderItem={renderItem}
+          data={filteredSms}
+          renderItem={({ item }) => (
+            <SmsListItem
+              item={item}
+              onPress={processor.openTransactionModal}
+              onIgnore={handleIgnore}
+              onRestore={handleRestore}
+            />
+          )}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
+          refreshing={loading}
+          onRefresh={loadSms}
           ListEmptyComponent={
-            <Text style={styles.emptyText}>No new messages</Text>
+            <View style={styles.emptyContainer}>
+              <Ionicons name="checkbox-outline" size={64} color="#3f3f46" />
+              <Text style={styles.emptyText}>All caught up!</Text>
+              <Text style={styles.emptySubtext}>
+                No new banking transactions found
+              </Text>
+            </View>
           }
         />
       )}
 
-      {/* Account Creation Modal */}
-      <Modal
-        animationType="slide"
-        presentationStyle="pageSheet"
-        visible={accountModalVisible}
-        onRequestClose={() => setAccountModalVisible(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>New Account</Text>
-            <TouchableOpacity onPress={() => setAccountModalVisible(false)}>
-              <Ionicons name="close" size={24} color="white" />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView style={styles.modalContent}>
-            {/* Bank Selection */}
-            <Text style={styles.sectionLabel}>Bank Name</Text>
-            <ScrollView 
-              horizontal 
-              showsHorizontalScrollIndicator={false}
-              style={{ marginBottom: 24 }}
-            >
-              {BANKS.map((bank) => (
-                <TouchableOpacity
-                  key={bank}
-                  style={[
-                    styles.bankChip,
-                    selectedBank === bank && styles.bankChipActive
-                  ]}
-                  onPress={() => setSelectedBank(bank)}
-                >
-                  <Text style={[
-                    styles.bankChipText,
-                    selectedBank === bank && styles.bankChipTextActive
-                  ]}>{bank}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-
-            {/* Account Number Display */}
-            <Text style={styles.sectionLabel}>Account Number</Text>
-            <View style={styles.accountNumberCard}>
-              <Text style={styles.accountNumberText}>•••• {newAccountData?.last4}</Text>
-            </View>
-
-            {/* Account Type Selection */}
-            <Text style={styles.sectionLabel}>Account Type</Text>
-            <View style={styles.typeButtonContainer}>
-              <TouchableOpacity
-                style={[
-                  styles.typeButtonNew,
-                  accountType === "savings" && styles.typeButtonActiveNew
-                ]}
-                onPress={() => setAccountType("savings")}
-              >
-                <Ionicons 
-                  name="wallet-outline" 
-                  size={24} 
-                  color={accountType === "savings" ? "#fff" : "#a1a1aa"} 
-                />
-                <Text style={[
-                  styles.typeButtonTextNew,
-                  accountType === "savings" && styles.typeButtonTextActiveNew
-                ]}>Savings</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[
-                  styles.typeButtonNew,
-                  accountType === "credit_card" && styles.typeButtonActiveNew
-                ]}
-                onPress={() => setAccountType("credit_card")}
-              >
-                <Ionicons 
-                  name="card-outline" 
-                  size={24} 
-                  color={accountType === "credit_card" ? "#fff" : "#a1a1aa"} 
-                />
-                <Text style={[
-                  styles.typeButtonTextNew,
-                  accountType === "credit_card" && styles.typeButtonTextActiveNew
-                ]}>Credit Card</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Nickname Input */}
-            <Text style={styles.sectionLabel}>Account Nickname</Text>
-            <TextInput
-              style={styles.nicknameInput}
-              value={accountNickname}
-              onChangeText={setAccountNickname}
-              placeholder="e.g., Salary Account, Shopping Card"
-              placeholderTextColor="#6b7280"
-              autoFocus
-            />
-            <Text style={styles.helperText}>
-              Give this account a memorable name
-            </Text>
-          </ScrollView>
-
-          <View style={styles.modalFooter}>
-            <TouchableOpacity
-              style={styles.createAccountButton}
-              onPress={handleCreateAccount}
-            >
-              <Ionicons name="checkmark-circle" size={20} color="white" />
-              <Text style={styles.createAccountButtonText}>Create Account</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+      <AccountCreationModal
+        visible={processor.accountModalVisible}
+        onClose={() => processor.setAccountModalVisible(false)}
+        onCreateAccount={handleCreateAccount}
+        newAccountData={processor.newAccountData}
+        selectedBank={processor.selectedBank}
+        setSelectedBank={processor.setSelectedBank}
+        accountNickname={processor.accountNickname}
+        setAccountNickname={processor.setAccountNickname}
+        accountType={processor.accountType}
+        setAccountType={processor.setAccountType}
+        banks={BANKS}
+        last4={processor.inputLast4}
+        setLast4={processor.setInputLast4}
+        openingBalance={processor.openingBalance}
+        setOpeningBalance={processor.setOpeningBalance}
+      />
 
       {/* Transaction Verification Modal */}
-      <Modal
-        animationType="slide"
-        presentationStyle="pageSheet"
-        visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Verify Transaction</Text>
-            <TouchableOpacity onPress={() => setModalVisible(false)}>
-              <Ionicons name="close" size={24} color="white" />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView style={styles.modalContent}>
-            {/* Transaction Status Indicator */}
-            {selectedSms && (() => {
-              const parsed = getSmartDetails(selectedSms.body, selectedSms.address);
-              return (
-                <View style={{
-                  backgroundColor: parsed.isTransaction ? '#10b98120' : '#f59e0b20',
-                  padding: 12,
-                  borderRadius: 8,
-                  marginBottom: 16,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 8
-                }}>
-                  <Ionicons 
-                    name={parsed.isTransaction ? "checkmark-circle" : "alert-circle-outline"} 
-                    size={20} 
-                    color={parsed.isTransaction ? "#10b981" : "#f59e0b"} 
-                  />
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ 
-                      color: parsed.isTransaction ? "#10b981" : "#f59e0b", 
-                      fontWeight: "600",
-                      fontSize: 14
-                    }}>
-                      {parsed.isTransaction ? "Valid Transaction" : "Not a Transaction"}
-                    </Text>
-                    <Text style={{ color: "#6b7280", fontSize: 12, marginTop: 2 }}>
-                      {parsed.isTransaction 
-                        ? `${parsed.bank} • ${parsed.method} • ${parsed.category}`
-                        : "OTP, promotional, or alert message"}
-                    </Text>
-                  </View>
-                </View>
-              );
-            })()}
-
-            <Text style={styles.label}>Original Text</Text>
-            <View style={styles.originalTextBox}>
-              <Text style={styles.originalText}>{selectedSms?.body}</Text>
-            </View>
-
-            <Text style={styles.label}>Account</Text>
-            <View style={styles.readOnlyField}>
-              <Text style={styles.readOnlyText}>
-                {accountId ? (() => {
-                  const account: any = getAllAccounts().find((a: any) => a.id === accountId);
-                  return account ? account.nickname : "Unknown Account";
-                })() : "No account selected"}
-              </Text>
-            </View>
-
-            <Text style={styles.label}>Amount</Text>
-            <TextInput
-              style={styles.amountInput}
-              value={amount}
-              onChangeText={setAmount}
-              keyboardType="numeric"
-              placeholder="0.00"
-              placeholderTextColor="#52525b"
-            />
-
-            <Text style={styles.label}>Merchant (Optional)</Text>
-            <TextInput
-              style={styles.input}
-              value={merchant}
-              onChangeText={setMerchant}
-              placeholder="Merchant Name"
-              placeholderTextColor="#52525b"
-            />
-
-            <Text style={styles.label}>Category</Text>
-            <TextInput
-              style={styles.input}
-              value={category}
-              onChangeText={setCategory}
-              placeholder="e.g., food_dining, shopping"
-              placeholderTextColor="#52525b"
-            />
-
-            <Text style={styles.label}>Remarks</Text>
-            <TextInput
-              style={styles.input}
-              value={remarks}
-              onChangeText={setRemarks}
-              placeholder="Add a remark (optional)"
-              placeholderTextColor="#52525b"
-            />
-          </ScrollView>
-
-          <View style={styles.footer}>
-            <TouchableOpacity
-              style={styles.ignoreButton}
-              onPress={() => selectedSms && handleIgnore(selectedSms.id)}
-            >
-              <Text style={styles.ignoreButtonText}>Mark as Spam</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.confirmButton}
-              onPress={handleConfirm}
-            >
-              <Text style={styles.confirmButtonText}>Confirm Transaction</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+      <TransactionModal
+        visible={processor.modalVisible}
+        onClose={() => processor.setModalVisible(false)}
+        onConfirm={handleConfirmTransaction}
+        selectedSms={processor.selectedSms}
+        amount={processor.amount}
+        setAmount={processor.setAmount}
+        merchant={processor.merchant}
+        setMerchant={processor.setMerchant}
+        category={processor.category}
+        setCategory={processor.setCategory}
+        remarks={processor.remarks}
+        setRemarks={processor.setRemarks}
+        accountNickname={getAccountNickname()}
+        accounts={accounts}
+        onSelectAccount={processor.selectAccount}
+        onCreateAccount={processor.openManualAccountCreation}
+        onMarkAsNotTransaction={handleMarkAsNotTransaction}
+        onMarkAsTransaction={handleMarkAsTransaction}
+      />
     </SafeAreaView>
   );
 }
@@ -610,349 +547,175 @@ export default function InboxScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#09090B", // zinc-950
+    backgroundColor: "#09090B",
   },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
     padding: 20,
     borderBottomWidth: 1,
     borderBottomColor: "#27272a",
-    alignItems: "center",
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: "bold",
     color: "white",
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: "#a1a1aa",
+    marginTop: 2,
+  },
+  headerActions: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  filterContainer: {
+    flexDirection: "row",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#27272a",
+  },
+  filterTab: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: "#18181b",
+    borderWidth: 1,
+    borderColor: "#3f3f46",
+  },
+  filterTabActive: {
+    backgroundColor: "rgba(168, 85, 247, 0.2)",
+    borderColor: "#a855f7",
+  },
+  filterTabText: {
+    color: "#a1a1aa",
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  filterTabTextActive: {
+    color: "#a855f7",
+    fontWeight: "600",
+  },
+  iconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(168, 85, 247, 0.1)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  iconButtonActive: {
+    backgroundColor: "rgba(168, 85, 247, 0.3)",
+  },
+  advancedFilters: {
+    backgroundColor: "#18181b",
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#27272a",
+  },
+  filterSection: {
+    marginBottom: 16,
+  },
+  filterLabel: {
+    color: "#e4e4e7",
+    fontSize: 14,
+    fontWeight: "600",
+    marginBottom: 8,
+  },
+  dateRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  dateButton: {
+    flex: 1,
+    backgroundColor: "#27272a",
+    borderWidth: 1,
+    borderColor: "#3f3f46",
+    borderRadius: 8,
+    padding: 10,
+    alignItems: "center",
+  },
+  dateButtonLabel: {
+    color: "#a1a1aa",
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  dateRangeText: {
+    color: "#a855f7",
+    fontSize: 12,
+    marginTop: 8,
+    textAlign: "center",
+  },
+  accountChips: {
+    flexDirection: "row",
+    gap: 8,
+    paddingRight: 16,
+  },
+  accountChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
+    backgroundColor: "#27272a",
+    borderWidth: 1,
+    borderColor: "#3f3f46",
+  },
+  accountChipActive: {
+    backgroundColor: "rgba(168, 85, 247, 0.2)",
+    borderColor: "#a855f7",
+  },
+  accountChipText: {
+    color: "#a1a1aa",
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  accountChipTextActive: {
+    color: "#a855f7",
+    fontWeight: "600",
+  },
+  clearFiltersButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 8,
+    marginTop: 8,
+  },
+  clearFiltersText: {
+    color: "#ef4444",
+    fontSize: 14,
+    fontWeight: "600",
   },
   center: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
   },
+  loadingText: {
+    color: "#a1a1aa",
+    marginTop: 12,
+    fontSize: 14,
+  },
   listContent: {
     padding: 16,
   },
-  item: {
-    backgroundColor: "#18181b", // zinc-900
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 0, // removed marginBottom since we have separator or gap
-    height: 100, // Fixed height for consistent swipe experience
-    justifyContent: "center",
-    borderBottomWidth: 1,
-    borderBottomColor: "#27272a",
-  },
-  itemHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 8,
-  },
-  sender: {
-    color: "white",
-    fontWeight: "bold",
-    fontSize: 16,
-  },
-  date: {
-    color: "#71717a", // zinc-500
-    fontSize: 12,
-  },
-  body: {
-    color: "#a1a1aa", // zinc-400
-    fontSize: 14,
-  },
-  rightAction: {
-    backgroundColor: "#ef4444",
-    justifyContent: "center",
-    alignItems: "flex-end",
-    flex: 1,
-    borderRadius: 12,
-  },
-  actionButton: {
-    width: 100,
-    height: "100%",
-    justifyContent: "center",
+  emptyContainer: {
     alignItems: "center",
-  },
-  actionText: {
-    color: "white",
-    fontWeight: "600",
-    marginTop: 4,
+    justifyContent: "center",
+    paddingVertical: 60,
   },
   emptyText: {
-    color: "#71717a",
-    textAlign: "center",
-    marginTop: 40,
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: "#09090B",
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#27272a",
-  },
-  modalTitle: {
-    color: "white",
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  modalContent: {
-    flex: 1,
-    padding: 20,
-  },
-  label: {
     color: "#a1a1aa",
-    fontSize: 14,
-    marginBottom: 8,
+    fontSize: 18,
+    fontWeight: "600",
     marginTop: 16,
   },
-  originalTextBox: {
-    backgroundColor: "#18181b",
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#27272a",
-  },
-  originalText: {
+  emptySubtext: {
     color: "#71717a",
     fontSize: 14,
-  },
-  amountInput: {
-    fontSize: 36,
-    fontWeight: "bold",
-    color: "white",
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: "#3f3f46",
-  },
-  input: {
-    backgroundColor: "#27272a",
-    color: "white",
-    padding: 16,
-    borderRadius: 12,
-    fontSize: 16,
-  },
-  chipContainer: {
-    flexDirection: "row",
-    marginBottom: 20,
     marginTop: 8,
-  },
-  chip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: "#27272a",
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: "#3f3f46",
-  },
-  selectedChip: {
-    backgroundColor: "#a855f7",
-    borderColor: "#a855f7",
-  },
-  chipText: {
-    color: "#a1a1aa",
-  },
-  selectedChipText: {
-    color: "white",
-    fontWeight: "600",
-  },
-  readOnlyField: {
-    backgroundColor: "#27272a",
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: "#3f3f46",
-  },
-  readOnlyText: {
-    color: "#a1a1aa",
-    fontSize: 16,
-  },
-  // Bank Selection Chips
-  bankChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    backgroundColor: "#18181b",
-    marginRight: 8,
-    borderWidth: 2,
-    borderColor: "#3f3f46",
-  },
-  bankChipActive: {
-    backgroundColor: "#a855f7",
-    borderColor: "#a855f7",
-  },
-  bankChipText: {
-    color: "#a1a1aa",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  bankChipTextActive: {
-    color: "white",
-  },
-  accountNumberCard: {
-    backgroundColor: "#18181b",
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: "#3f3f46",
-    alignItems: "center",
-  },
-  accountNumberText: {
-    color: "#e5e5e5",
-    fontSize: 20,
-    fontWeight: "700",
-    letterSpacing: 3,
-  },
-  // New Account Modal Styles
-  bankCard: {
-    backgroundColor: "#18181b",
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: "#3f3f46",
-  },
-  bankCardHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  bankCardTitle: {
-    color: "white",
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  bankCardNumber: {
-    color: "#a1a1aa",
-    fontSize: 16,
-    marginTop: 4,
-    letterSpacing: 2,
-  },
-  sectionLabel: {
-    color: "#e5e5e5",
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: 12,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  typeButtonContainer: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 24,
-  },
-  typeButtonNew: {
-    flex: 1,
-    backgroundColor: "#18181b",
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: "#3f3f46",
-    alignItems: "center",
-    gap: 8,
-  },
-  typeButtonActiveNew: {
-    backgroundColor: "#a855f7",
-    borderColor: "#a855f7",
-  },
-  typeButtonTextNew: {
-    color: "#a1a1aa",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  typeButtonTextActiveNew: {
-    color: "white",
-  },
-  nicknameInput: {
-    backgroundColor: "#18181b",
-    color: "white",
-    padding: 16,
-    borderRadius: 12,
-    fontSize: 16,
-    borderWidth: 1,
-    borderColor: "#3f3f46",
-    marginBottom: 8,
-  },
-  helperText: {
-    color: "#71717a",
-    fontSize: 12,
-    marginBottom: 16,
-  },
-  createAccountButton: {
-    backgroundColor: "#a855f7",
-    padding: 16,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-    gap: 8,
-  },
-  createAccountButtonText: {
-    color: "white",
-    fontWeight: "700",
-    fontSize: 16,
-  },
-  typeButton: {
-    flex: 1,
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#3f3f46",
-    alignItems: "center",
-  },
-  typeButtonActive: {
-    backgroundColor: "#a855f7",
-    borderColor: "#a855f7",
-  },
-  typeButtonText: {
-    color: "#a1a1aa",
-  },
-  typeButtonTextActive: {
-    color: "white",
-    fontWeight: "600",
-  },
-  modalFooter: {
-    padding: 20,
-    borderTopWidth: 1,
-    borderTopColor: "#27272a",
-  },
-  footer: {
-    padding: 20,
-    borderTopWidth: 1,
-    borderTopColor: "#27272a",
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 20,
-  },
-  ignoreButton: {
-    flex: 1,
-    padding: 16,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  ignoreButtonText: {
-    color: "#ef4444",
-    fontWeight: "600",
-  },
-  confirmButton: {
-    flex: 2,
-    backgroundColor: "#22c55e",
-    padding: 16,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  confirmButtonText: {
-    color: "white",
-    fontWeight: "bold",
-    fontSize: 16,
   },
 });

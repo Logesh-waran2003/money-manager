@@ -1,17 +1,17 @@
+import { ManualTransactionModal } from "@/components/ManualTransactionModal";
 import { TransactionList } from "@/components/TransactionList";
-import { getDb, initDb } from "@/services/db";
+import { getDb } from "@/services/db";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-// Ensure DB is initialized
-initDb();
-const db = getDb();
-
 export default function HomeScreen() {
   const [transactions, setTransactions] = useState<any[]>([]);
+  const [totalBalance, setTotalBalance] = useState(0);
+  const [accounts, setAccounts] = useState<any[]>([]);
+  const [manualModalVisible, setManualModalVisible] = useState(false);
   const router = useRouter();
 
   useFocusEffect(
@@ -20,14 +20,28 @@ export default function HomeScreen() {
     }, [])
   );
 
-  const loadData = () => {
+  const loadData = async () => {
     try {
-      const result = db.getAllSync(
+      const db = await getDb();
+
+      // 1. Fetch recent transactions
+      const txns: any[] = await db.getAllAsync(
         "SELECT * FROM transactions ORDER BY date DESC LIMIT 20"
       );
-      setTransactions(result);
+      setTransactions(txns);
+
+      // 2. Fetch total balance from all accounts
+      const accountsList: any[] = await db.getAllAsync(
+        "SELECT * FROM accounts"
+      );
+      setAccounts(accountsList);
+      const total = accountsList.reduce(
+        (acc, curr) => acc + (curr.balance || 0),
+        0
+      );
+      setTotalBalance(total);
     } catch (error) {
-      console.error("Failed to load transactions", error);
+      console.error("Failed to load home data", error);
     }
   };
 
@@ -44,16 +58,7 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.balance}>
-          {/* Simple sum for demo */}₹
-          {transactions
-            .reduce((acc, curr) => {
-              return curr.type === "credit"
-                ? acc + curr.amount
-                : acc - curr.amount;
-            }, 0)
-            .toFixed(2)}
-        </Text>
+        <Text style={styles.balance}>₹{totalBalance.toFixed(2)}</Text>
 
         <Text style={styles.sectionTitle}>Recent Transactions</Text>
       </View>
@@ -61,6 +66,26 @@ export default function HomeScreen() {
       <View style={styles.listContainer}>
         <TransactionList data={transactions} />
       </View>
+
+      {/* Floating Action Button */}
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => setManualModalVisible(true)}
+      >
+        <Ionicons name="add" size={28} color="white" />
+      </TouchableOpacity>
+
+      {/* Manual Transaction Modal */}
+      <ManualTransactionModal
+        visible={manualModalVisible}
+        onClose={() => setManualModalVisible(false)}
+        onSuccess={loadData}
+        accounts={accounts}
+        onCreateAccount={() => {
+          setManualModalVisible(false);
+          router.push("/(tabs)/settings");
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -107,5 +132,21 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     flex: 1,
+  },
+  fab: {
+    position: "absolute",
+    right: 24,
+    bottom: 130,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "#a855f7",
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 8,
+    shadowColor: "#a855f7",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
 });

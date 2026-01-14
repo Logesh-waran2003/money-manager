@@ -1,5 +1,4 @@
-// Placeholder for Gemini API Key - In production, use ENV variables
-const GEMINI_API_KEY = "AIzaSyCkNWsalkP3LWnr6pKGMJJ1dek3PNZrtU0";
+const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
 const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
 export async function categorizeTransaction(

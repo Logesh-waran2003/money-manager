@@ -2,7 +2,9 @@ import { useState } from "react";
 import Animated, {
   Extrapolation,
   interpolate,
+  runOnJS,
   SharedValue,
+  useAnimatedReaction,
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
@@ -11,6 +13,8 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { TransactionCard } from "./ui/TransactionCard";
+
+import * as Haptics from "expo-haptics";
 
 // Mock Data
 const MOCK_TRANSACTIONS = Array.from({ length: 20 }).map((_, i) => ({
@@ -76,9 +80,6 @@ const AnimatedItem = ({
   );
 };
 
-import * as Haptics from "expo-haptics";
-import { runOnJS, useAnimatedReaction } from "react-native-reanimated";
-
 export function TransactionList({ data }: { data?: any[] }) {
   const scrollY = useSharedValue(0);
 
@@ -104,7 +105,7 @@ export function TransactionList({ data }: { data?: any[] }) {
       renderItem={({ item, index }) => (
         <AnimatedItem item={item} index={index} scrollY={scrollY} />
       )}
-      contentContainerStyle={{ padding: 20, paddingBottom: 100 }}
+      contentContainerStyle={{ padding: 20, paddingBottom: 200 }}
       onScroll={scrollHandler}
       scrollEventThrottle={16}
       showsVerticalScrollIndicator={false}
