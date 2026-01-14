@@ -41,3 +41,36 @@ app-example
 # generated native folders
 /ios
 /android
+
+# build files
+build/
+bin/
+obj/
+out/
+.gradle/
+*.apk
+*.aar
+*.bundle
+
+# Nested node_modules
+**/node_modules/
+
+# Local databases
+*.db
+*.db-shm
+*.db-wal
+
+# Agent Metadata
+.agent/
+
+# Documentation
+docs/
+
+# macOS
+.DS_Store
+
+# User-specific
+.vscode/
+.idea/
+*.swp
+*.log
