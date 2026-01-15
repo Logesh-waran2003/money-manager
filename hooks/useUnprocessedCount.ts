@@ -1,4 +1,5 @@
 import { getDb } from "@/services/db";
+import * as SmsReader from "sms-reader";
 import { useEffect, useState } from "react";
 
 export const useUnprocessedCount = (refreshTrigger?: number) => {
@@ -11,8 +12,7 @@ export const useUnprocessedCount = (refreshTrigger?: number) => {
   const loadCount = async () => {
     try {
       const db = await getDb();
-      const SmsReader = await import("../services/SmsReader");
-      const smsList = await SmsReader.default.getSms(1000);
+      const smsList = await SmsReader.getSms(1000);
 
       const processedResult = await db.getAllAsync<{ mobile_id?: string }>(
         "SELECT mobile_id FROM transactions"
