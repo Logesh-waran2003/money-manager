@@ -14,6 +14,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { CATEGORIES } from "@/services/config/detection";
 
 interface ManualTransactionModalProps {
   visible: boolean;
@@ -23,17 +24,7 @@ interface ManualTransactionModalProps {
   onCreateAccount?: () => void;
 }
 
-const CATEGORIES = [
-  "food_dining",
-  "shopping",
-  "transportation",
-  "utilities",
-  "financial",
-  "personal",
-  "healthcare",
-  "entertainment",
-  "others",
-];
+const CATEGORY_IDS = CATEGORIES.map(cat => cat.id);
 
 export const ManualTransactionModal: React.FC<
   ManualTransactionModalProps
@@ -209,7 +200,7 @@ export const ManualTransactionModal: React.FC<
               {/* Category */}
               <Text style={styles.label}>Category</Text>
               <View style={styles.categoryContainer}>
-                {CATEGORIES.map((cat) => (
+                {CATEGORY_IDS.map((cat) => (
                   <TouchableOpacity
                     key={cat}
                     style={[

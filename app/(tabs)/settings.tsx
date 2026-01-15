@@ -1,5 +1,6 @@
 import { AccountCreationModal } from "@/components/inbox/AccountCreationModal";
 import { getAllAccounts } from "@/services/db";
+import { BANKS } from "@/services/config/detection";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
@@ -275,14 +276,7 @@ export default function SettingsScreen() {
         setAccountNickname={setAccountNickname}
         accountType={accountType}
         setAccountType={setAccountType}
-        banks={[
-          "HDFC Bank",
-          "Axis Bank",
-          "SBI",
-          "ICICI Bank",
-          "Kotak Bank",
-          "Other",
-        ]}
+        banks={BANKS}
         last4={inputLast4}
         setLast4={setInputLast4}
         openingBalance={openingBalance}

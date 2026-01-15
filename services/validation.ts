@@ -1,6 +1,7 @@
 /**
  * Input validation utilities for transaction data
  */
+import { CATEGORIES } from "./config/detection";
 
 export interface ValidationResult {
   isValid: boolean;
@@ -57,17 +58,7 @@ export const validateMerchant = (merchant: string): ValidationResult => {
  * Validate category
  */
 export const validateCategory = (category: string): ValidationResult => {
-  const validCategories = [
-    "food_dining",
-    "transportation",
-    "shopping",
-    "utilities",
-    "financial",
-    "personal",
-    "healthcare",
-    "entertainment",
-    "others"
-  ];
+  const validCategories = CATEGORIES.map(c => c.id);
 
   if (!category || !validCategories.includes(category)) {
     return { isValid: false, error: "Invalid category selected" };

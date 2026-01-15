@@ -12,6 +12,7 @@ import {
   UnprocessedSms,
 } from "@/services/SmsService";
 import { getAllAccounts, saveFeedback, Account } from "@/services/db";
+import { BANKS } from "@/services/config/detection";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useMemo, useState } from "react";
 import {
@@ -29,14 +30,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-const BANKS = [
-  "HDFC Bank",
-  "Axis Bank",
-  "SBI",
-  "ICICI Bank",
-  "Kotak Bank",
-  "Other",
-];
+
 
 type FilterType = "inbox" | "transactions" | "ignored" | "all";
 
