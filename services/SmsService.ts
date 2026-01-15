@@ -10,8 +10,32 @@ export interface UnprocessedSms {
   id: string;
   address: string;
   body: string;
-  date: string; // timestamp
+  date: string;
   isIgnored?: boolean;
+  isProcessed?: boolean;
+}
+
+interface SmartDetails {
+  amount: string;
+  merchant: string;
+  type: "debit" | "credit";
+  category: string;
+  bank: string;
+  account: string | null;
+  cardLast4: string | null;
+  balance: number | null;
+  limit: number | null;
+  method: string;
+  reference: string | null;
+  transactionDate: string | null;
+  isTransaction: boolean;
+}
+
+interface SmsMessage {
+  id: string;
+  address: string;
+  body: string;
+  date: string;
 }
 
 // Improved Regex for Amount - handles multiple formats
@@ -261,13 +285,9 @@ const detectTransactionType = (body: string): "debit" | "credit" => {
   return "debit"; // Most SMS are debit transactions
 };
 
-export interface UnprocessedSms {
-  id: string;
-  address: string;
-  body: string;
-  date: string; // timestamp
-  isIgnored?: boolean;
-  isProcessed?: boolean;
+interface DbRow {
+  mobile_id?: string;
+  sms_id?: string;
 }
 
 export const getUnprocessedSms = async (): Promise<UnprocessedSms[]> => {
@@ -277,21 +297,21 @@ export const getUnprocessedSms = async (): Promise<UnprocessedSms[]> => {
     const smsList = await SmsReader.getSms(1000);
 
     // 2. Fetch processed mobile_ids
-    const processedResult = await db.getAllAsync(
+    const processedResult = await db.getAllAsync<DbRow>(
       "SELECT mobile_id FROM transactions"
     );
     const processedIds = new Set(
-      processedResult.map((row: any) => row.mobile_id)
+      processedResult.map((row) => row.mobile_id).filter((id): id is string => !!id)
     );
 
     // 3. Fetch ignored sms_ids
-    const ignoredResult = await db.getAllAsync(
+    const ignoredResult = await db.getAllAsync<DbRow>(
       "SELECT sms_id FROM ignored_sms"
     );
-    const ignoredIds = new Set(ignoredResult.map((row: any) => row.sms_id));
+    const ignoredIds = new Set(ignoredResult.map((row) => row.sms_id).filter((id): id is string => !!id));
 
     // 4. Filter
-    const unprocessed = smsList.filter((sms: any) => {
+    const unprocessed = smsList.filter((sms: SmsMessage) => {
       // Basic filter for transactional SMS
       const isTransactional =
         /(?:Rs\.?|INR|₹|debited|credited|spent|paid)/i.test(sms.body);
@@ -300,7 +320,7 @@ export const getUnprocessedSms = async (): Promise<UnprocessedSms[]> => {
       return isTransactional;
     });
 
-    return unprocessed.map((sms: any) => {
+    return unprocessed.map((sms: SmsMessage) => {
       const id = String(sms.id);
       return {
         id: id,
@@ -317,7 +337,7 @@ export const getUnprocessedSms = async (): Promise<UnprocessedSms[]> => {
   }
 };
 
-export const getSmartDetails = (body: string, sender: string) => {
+export const getSmartDetails = (body: string, sender: string): SmartDetails => {
   const amountMatch = body.match(AMOUNT_REGEX);
   const amount = amountMatch ? amountMatch[1].replace(/,/g, "") : "";
   const merchant = extractMerchant(body, sender);
@@ -438,7 +458,7 @@ export const exportSmsAnalysis = async () => {
     const smsList = await SmsReader.getSms(2000);
 
     // Filter for banking SMS with improved validation
-    const bankingSms = smsList.filter((sms: any) => {
+    const bankingSms = smsList.filter((sms: SmsMessage) => {
       const body = sms.body.toLowerCase();
       const sender = sms.address.toLowerCase();
 
@@ -475,7 +495,7 @@ export const exportSmsAnalysis = async () => {
         bankingSmsCount: bankingSms.length,
         appVersion: "1.0.0",
       },
-      smsAnalysis: bankingSms.slice(0, 1000).map((sms: any, index: number) => {
+      smsAnalysis: bankingSms.slice(0, 1000).map((sms: SmsMessage, index: number) => {
         const { amount, merchant, type } = getSmartDetails(
           sms.body,
           sms.address

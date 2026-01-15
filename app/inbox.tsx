@@ -11,9 +11,9 @@ import {
   unIgnoreSms,
   UnprocessedSms,
 } from "@/services/SmsService";
-import { getAllAccounts, saveFeedback } from "@/services/db";
+import { getAllAccounts, saveFeedback, Account } from "@/services/db";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -42,7 +42,7 @@ type FilterType = "inbox" | "transactions" | "ignored" | "all";
 
 export default function InboxScreen() {
   const [smsList, setSmsList] = useState<UnprocessedSms[]>([]);
-  const [accounts, setAccounts] = useState<any[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterType>("inbox");
 
@@ -157,7 +157,7 @@ export default function InboxScreen() {
 
   const getAccountNickname = () => {
     if (!processor.accountId) return "No account selected";
-    const account = accounts.find((a: any) => a.id === processor.accountId);
+    const account = accounts.find((a) => a.id === processor.accountId);
     return account ? account.nickname : "Unknown Account";
   };
 
@@ -219,6 +219,15 @@ export default function InboxScreen() {
     setSelectedAccounts([]);
   };
 
+  // Memoize expensive SMS parsing operations
+  const parsedSmsCache = useMemo(() => {
+    const cache = new Map<string, ReturnType<typeof getSmartDetails>>();
+    smsList.forEach((item) => {
+      cache.set(item.id, getSmartDetails(item.body, item.address));
+    });
+    return cache;
+  }, [smsList]);
+
   const filteredSms = smsList.filter((item) => {
     // Status filter
     if (filter === "inbox" && (item.isIgnored || item.isProcessed))
@@ -242,7 +251,8 @@ export default function InboxScreen() {
 
     // Account filter
     if (selectedAccounts.length > 0) {
-      const parsed = getSmartDetails(item.body, item.address);
+      const parsed = parsedSmsCache.get(item.id);
+      if (!parsed) return false;
 
       const matchesKnownAccount = accounts.some(
         (acc) =>

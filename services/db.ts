@@ -1,5 +1,31 @@
 import * as SQLite from "expo-sqlite";
 
+// Database interfaces
+export interface Account {
+  id: string;
+  bank_name: string;
+  account_last4: string;
+  account_type: string;
+  nickname: string;
+  balance: number;
+  created_at: string;
+}
+
+export interface Merchant {
+  id: string;
+  name: string;
+  default_category: string;
+  created_at: string;
+}
+
+interface SmsFeedback {
+  id: string;
+  sms_body: string;
+  merchant: string;
+  is_transaction: number;
+  created_at: string;
+}
+
 // Open database asynchronously
 const dbPromise = SQLite.openDatabaseAsync("money_manager_v5.db");
 
@@ -52,11 +78,16 @@ export const initDb = async () => {
       is_transaction INTEGER NOT NULL,
       created_at TEXT
     );
+    
+    -- Performance indexes
+    CREATE INDEX IF NOT EXISTS idx_transactions_account_id ON transactions(account_id);
+    CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date);
+    CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category);
+    CREATE INDEX IF NOT EXISTS idx_transactions_merchant_id ON transactions(merchant_id);
+    CREATE INDEX IF NOT EXISTS idx_sms_feedback_merchant ON sms_feedback(merchant);
   `);
 
-  // 2. Simple Migration Check (example for v5+)
-  // You can add more PRAGMA user_version checks here as needed
-  console.log("Database initialized (Async)");
+  console.log("Database initialized with indexes");
 };
 
 // Export the promise so others can wait for it
@@ -64,9 +95,9 @@ export const getDb = async () => await dbPromise;
 
 // --- Account management ---
 
-export const findAccount = async (bankName: string, accountLast4: string) => {
+export const findAccount = async (bankName: string, accountLast4: string): Promise<Account | null> => {
   const db = await dbPromise;
-  return await db.getFirstAsync(
+  return await db.getFirstAsync<Account>(
     "SELECT * FROM accounts WHERE bank_name = ? AND account_last4 = ?",
     [bankName, accountLast4]
   );
@@ -79,7 +110,7 @@ export const createAccount = async (account: {
   account_type: string;
   nickname: string;
   balance?: number;
-}) => {
+}): Promise<void> => {
   const db = await dbPromise;
   await db.runAsync(
     "INSERT INTO accounts (id, bank_name, account_last4, account_type, nickname, balance, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -95,9 +126,9 @@ export const createAccount = async (account: {
   );
 };
 
-export const getAllAccounts = async () => {
+export const getAllAccounts = async (): Promise<Account[]> => {
   const db = await dbPromise;
-  return await db.getAllAsync(
+  return await db.getAllAsync<Account>(
     "SELECT * FROM accounts ORDER BY created_at DESC"
   );
 };
@@ -110,7 +141,7 @@ export const updateAccountBalance = async (
   accountId: string,
   amount: number,
   type: "debit" | "credit"
-) => {
+): Promise<void> => {
   const db = await dbPromise;
   const adjustment = type === "debit" ? -amount : amount;
 
@@ -122,9 +153,9 @@ export const updateAccountBalance = async (
 
 // --- Merchant management ---
 
-export const findMerchant = async (name: string) => {
+export const findMerchant = async (name: string): Promise<Merchant | null> => {
   const db = await dbPromise;
-  return await db.getFirstAsync("SELECT * FROM merchants WHERE name = ?", [
+  return await db.getFirstAsync<Merchant>("SELECT * FROM merchants WHERE name = ?", [
     name,
   ]);
 };
@@ -133,7 +164,7 @@ export const createMerchant = async (merchant: {
   id: string;
   name: string;
   default_category: string;
-}) => {
+}): Promise<void> => {
   const db = await dbPromise;
   await db.runAsync(
     "INSERT OR IGNORE INTO merchants (id, name, default_category, created_at) VALUES (?, ?, ?, ?)",
@@ -146,9 +177,9 @@ export const createMerchant = async (merchant: {
   );
 };
 
-export const getAllMerchants = async () => {
+export const getAllMerchants = async (): Promise<Merchant[]> => {
   const db = await dbPromise;
-  return await db.getAllAsync("SELECT * FROM merchants ORDER BY name ASC");
+  return await db.getAllAsync<Merchant>("SELECT * FROM merchants ORDER BY name ASC");
 };
 
 // --- SMS Feedback management ---
@@ -158,7 +189,7 @@ export const saveFeedback = async (feedback: {
   sms_body: string;
   merchant: string;
   is_transaction: boolean;
-}) => {
+}): Promise<void> => {
   const db = await dbPromise;
   await db.runAsync(
     "INSERT INTO sms_feedback (id, sms_body, merchant, is_transaction, created_at) VALUES (?, ?, ?, ?, ?)",
@@ -174,7 +205,7 @@ export const saveFeedback = async (feedback: {
 
 export const checkFeedback = async (merchant: string): Promise<boolean | null> => {
   const db = await dbPromise;
-  const result = await db.getFirstAsync<{ is_transaction: number }>(
+  const result = await db.getFirstAsync<SmsFeedback>(
     "SELECT is_transaction FROM sms_feedback WHERE merchant = ? ORDER BY created_at DESC LIMIT 1",
     [merchant]
   );

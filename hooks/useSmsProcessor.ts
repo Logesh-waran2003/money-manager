@@ -10,9 +10,17 @@ import {
   findMerchant,
   updateAccountBalance,
 } from "@/services/db";
+import { validateTransaction } from "@/services/validation";
 import * as Crypto from "expo-crypto";
 import { useState } from "react";
 import { Alert } from "react-native";
+
+interface AccountData {
+  bank: string;
+  last4: string;
+  type: string;
+  nickname: string;
+}
 
 /**
  * Custom hook to handle SMS transaction processing logic
@@ -22,7 +30,7 @@ export const useSmsProcessor = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [accountModalVisible, setAccountModalVisible] = useState(false);
   const [selectedSms, setSelectedSms] = useState<UnprocessedSms | null>(null);
-  const [newAccountData, setNewAccountData] = useState<any>(null);
+  const [newAccountData, setNewAccountData] = useState<AccountData | null>(null);
   const [selectedBank, setSelectedBank] = useState("");
 
   // Form State
@@ -64,7 +72,7 @@ export const useSmsProcessor = () => {
     console.log("[openTransactionModal] accountLast4:", accountLast4);
     
     if (parsed.bank && accountLast4) {
-      const account: any = await findAccount(parsed.bank, accountLast4);
+      const account = await findAccount(parsed.bank, accountLast4);
 
       if (!account) {
         // Show account creation modal
@@ -91,7 +99,7 @@ export const useSmsProcessor = () => {
 
     // Check/create merchant silently
     if (parsed.merchant) {
-      let merchantRecord: any = await findMerchant(parsed.merchant);
+      const merchantRecord = await findMerchant(parsed.merchant);
       if (!merchantRecord) {
         const merchantId = Crypto.randomUUID();
         await createMerchant({
@@ -186,21 +194,29 @@ export const useSmsProcessor = () => {
   const handleConfirmTransaction = async (
     onSuccess: () => void
   ): Promise<boolean> => {
-    if (!selectedSms || !amount) {
-      Alert.alert("Missing Info", "Please enter amount");
+    // Validate transaction data
+    const validation = validateTransaction({
+      amount,
+      merchant,
+      category,
+      accountId,
+    });
+
+    if (!validation.isValid) {
+      Alert.alert("Validation Error", validation.error || "Invalid data");
       return false;
     }
 
-    if (!accountId) {
-      Alert.alert("Missing Account", "Account is required");
+    if (!selectedSms) {
+      Alert.alert("Error", "No SMS selected");
       return false;
     }
 
     try {
       // Find merchant_id if merchant name provided
-      let merchantId = null;
+      let merchantId: string | null = null;
       if (merchant) {
-        const merchantRecord: any = await findMerchant(merchant);
+        const merchantRecord = await findMerchant(merchant);
         if (merchantRecord) {
           merchantId = merchantRecord.id;
         }
