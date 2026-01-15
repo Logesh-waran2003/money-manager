@@ -78,12 +78,21 @@ export const initDb = async () => {
       is_transaction INTEGER NOT NULL,
       created_at TEXT
     );
+    CREATE TABLE IF NOT EXISTS settings (
+      id INTEGER PRIMARY KEY,
+      notify_new_transactions INTEGER DEFAULT 1,
+      notify_pending_verification INTEGER DEFAULT 1,
+      notify_weekly_summary INTEGER DEFAULT 0
+    );
+    INSERT OR IGNORE INTO settings (id) VALUES (1);
     
     -- Performance indexes
     CREATE INDEX IF NOT EXISTS idx_transactions_account_id ON transactions(account_id);
     CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date);
     CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category);
     CREATE INDEX IF NOT EXISTS idx_transactions_merchant_id ON transactions(merchant_id);
+    CREATE INDEX IF NOT EXISTS idx_transactions_merchant ON transactions(merchant);
+    CREATE INDEX IF NOT EXISTS idx_transactions_remarks ON transactions(remarks);
     CREATE INDEX IF NOT EXISTS idx_sms_feedback_merchant ON sms_feedback(merchant);
   `);
 

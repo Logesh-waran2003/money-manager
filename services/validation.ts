@@ -60,7 +60,7 @@ export const validateMerchant = (merchant: string): ValidationResult => {
 export const validateCategory = (category: string): ValidationResult => {
   const validCategories = CATEGORIES.map(c => c.id);
 
-  if (!category || !validCategories.includes(category)) {
+  if (!category || !validCategories.includes(category as any)) {
     return { isValid: false, error: "Invalid category selected" };
   }
 

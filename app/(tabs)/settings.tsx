@@ -1,12 +1,17 @@
 import { AccountCreationModal } from "@/components/inbox/AccountCreationModal";
 import { getAllAccounts } from "@/services/db";
 import { BANKS } from "@/services/config/detection";
+import {
+  getNotificationSettings,
+  updateNotificationSettings,
+} from "@/services/notifications";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import {
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TouchableOpacity,
   View,
@@ -23,11 +28,30 @@ export default function SettingsScreen() {
   const [openingBalance, setOpeningBalance] = useState("");
   const router = useRouter();
 
+  const [notifyNewTransactions, setNotifyNewTransactions] = useState(true);
+  const [notifyPendingVerification, setNotifyPendingVerification] = useState(true);
+  const [notifyWeeklySummary, setNotifyWeeklySummary] = useState(false);
+
   useFocusEffect(
     useCallback(() => {
       loadAccounts();
+      loadNotificationSettings();
     }, [])
   );
+
+  const loadNotificationSettings = async () => {
+    const settings = await getNotificationSettings();
+    setNotifyNewTransactions(settings.notifyNewTransactions);
+    setNotifyPendingVerification(settings.notifyPendingVerification);
+    setNotifyWeeklySummary(settings.notifyWeeklySummary);
+  };
+
+  const handleToggleNotification = async (key: string, value: boolean) => {
+    await updateNotificationSettings(key, value);
+    if (key === "notify_new_transactions") setNotifyNewTransactions(value);
+    if (key === "notify_pending_verification") setNotifyPendingVerification(value);
+    if (key === "notify_weekly_summary") setNotifyWeeklySummary(value);
+  };
 
   const loadAccounts = async () => {
     const accountsList = await getAllAccounts();
@@ -259,6 +283,71 @@ export default function SettingsScreen() {
             <Ionicons name="chevron-forward" size={20} color="#71717a" />
           </TouchableOpacity>
         </View>
+
+        {/* Notifications Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Notifications</Text>
+
+          <View style={styles.settingItem}>
+            <View style={styles.settingLeft}>
+              <Ionicons name="notifications-outline" size={20} color="#a1a1aa" />
+              <View style={styles.settingTextContainer}>
+                <Text style={styles.settingText}>New Transactions</Text>
+                <Text style={styles.settingSubtext}>
+                  Notify when new banking SMS detected
+                </Text>
+              </View>
+            </View>
+            <Switch
+              value={notifyNewTransactions}
+              onValueChange={(value) =>
+                handleToggleNotification("notify_new_transactions", value)
+              }
+              trackColor={{ false: "#3f3f46", true: "#a855f7" }}
+              thumbColor="#fff"
+            />
+          </View>
+
+          <View style={styles.settingItem}>
+            <View style={styles.settingLeft}>
+              <Ionicons name="alert-circle-outline" size={20} color="#a1a1aa" />
+              <View style={styles.settingTextContainer}>
+                <Text style={styles.settingText}>Pending Verification</Text>
+                <Text style={styles.settingSubtext}>
+                  Alert when 10+ messages need review
+                </Text>
+              </View>
+            </View>
+            <Switch
+              value={notifyPendingVerification}
+              onValueChange={(value) =>
+                handleToggleNotification("notify_pending_verification", value)
+              }
+              trackColor={{ false: "#3f3f46", true: "#a855f7" }}
+              thumbColor="#fff"
+            />
+          </View>
+
+          <View style={styles.settingItem}>
+            <View style={styles.settingLeft}>
+              <Ionicons name="calendar-outline" size={20} color="#a1a1aa" />
+              <View style={styles.settingTextContainer}>
+                <Text style={styles.settingText}>Weekly Summary</Text>
+                <Text style={styles.settingSubtext}>
+                  Sunday 8 PM spending summary
+                </Text>
+              </View>
+            </View>
+            <Switch
+              value={notifyWeeklySummary}
+              onValueChange={(value) =>
+                handleToggleNotification("notify_weekly_summary", value)
+              }
+              trackColor={{ false: "#3f3f46", true: "#a855f7" }}
+              thumbColor="#fff"
+            />
+          </View>
+        </View>
       </ScrollView>
 
       {/* Account Creation Modal */}
@@ -385,10 +474,23 @@ const styles = StyleSheet.create({
     borderColor: "#27272a",
     gap: 12,
   },
-  settingText: {
+  settingLeft: {
+    flexDirection: "row",
+    alignItems: "center",
     flex: 1,
+    gap: 12,
+  },
+  settingTextContainer: {
+    flex: 1,
+  },
+  settingText: {
     fontSize: 16,
     color: "#a1a1aa",
+  },
+  settingSubtext: {
+    fontSize: 13,
+    color: "#71717a",
+    marginTop: 2,
   },
   creditCard: {
     width: "100%",

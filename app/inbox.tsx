@@ -1,7 +1,10 @@
 import { AccountCreationModal } from "@/components/inbox/AccountCreationModal";
 import { SmsListItem } from "@/components/inbox/SmsListItem";
 import { TransactionModal } from "@/components/inbox/TransactionModal";
+import { SearchBar } from "@/components/SearchBar";
 import { useSmsProcessor } from "@/hooks/useSmsProcessor";
+import { useSearch } from "@/hooks/useSearch";
+import { useUnprocessedContext } from "@/contexts/UnprocessedContext";
 import {
   exportSmsAnalysis,
   getSmartDetails,
@@ -47,6 +50,7 @@ export default function InboxScreen() {
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
 
   const processor = useSmsProcessor();
+  const { refresh: refreshUnprocessedCount } = useUnprocessedContext();
 
   useEffect(() => {
     loadSms();
@@ -61,6 +65,7 @@ export default function InboxScreen() {
     setSmsList(list);
     setAccounts(accountsList);
     setLoading(false);
+    refreshUnprocessedCount();
   };
 
   const handleTestParsing = () => {
@@ -108,6 +113,7 @@ export default function InboxScreen() {
       if (processor.selectedSms?.id === smsId) {
         processor.setModalVisible(false);
       }
+      refreshUnprocessedCount();
     } catch (error) {
       Alert.alert("Error", "Failed to ignore SMS");
     }
@@ -135,6 +141,7 @@ export default function InboxScreen() {
           )
         );
       }
+      refreshUnprocessedCount();
     });
 
     if (success) {
@@ -287,6 +294,19 @@ export default function InboxScreen() {
     return true;
   });
 
+  const { searchQuery, setSearchQuery, filteredData: searchedSms } = useSearch(
+    filteredSms,
+    (item) => {
+      const parsed = parsedSmsCache.get(item.id);
+      return [
+        item.body,
+        item.address,
+        parsed?.merchant || "",
+        parsed?.amount?.toString() || "",
+      ];
+    }
+  );
+
   /* Enable LayoutAnimation for Android */
   if (
     Platform.OS === "android" &&
@@ -352,6 +372,13 @@ export default function InboxScreen() {
           </TouchableOpacity>
         ))}
       </View>
+
+      {/* Search Bar */}
+      <SearchBar
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+        placeholder="Search SMS..."
+      />
 
       {/* Advanced Filters */}
       {showFilters && (
@@ -480,7 +507,7 @@ export default function InboxScreen() {
         </View>
       ) : (
         <FlatList
-          data={filteredSms}
+          data={searchedSms}
           renderItem={({ item }) => (
             <SmsListItem
               item={item}
@@ -496,9 +523,13 @@ export default function InboxScreen() {
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Ionicons name="checkbox-outline" size={64} color="#3f3f46" />
-              <Text style={styles.emptyText}>All caught up!</Text>
+              <Text style={styles.emptyText}>
+                {searchQuery ? "No results found" : "All caught up!"}
+              </Text>
               <Text style={styles.emptySubtext}>
-                No new banking transactions found
+                {searchQuery
+                  ? "Try a different search term"
+                  : "No new banking transactions found"}
               </Text>
             </View>
           }

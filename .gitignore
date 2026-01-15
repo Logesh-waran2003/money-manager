@@ -67,6 +67,9 @@ out/
 # Documentation
 docs/
 
+# Test coverage
+coverage/
+
 # macOS
 .DS_Store
 

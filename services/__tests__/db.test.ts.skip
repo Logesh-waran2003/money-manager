@@ -1,0 +1,156 @@
+import * as SQLite from 'expo-sqlite';
+import { initDb, getDb, findAccount, createAccount, getAllAccounts, updateAccountBalance, findMerchant, createMerchant, getAllMerchants, saveFeedback, checkFeedback } from '../db';
+
+jest.mock('expo-sqlite');
+
+describe('Database', () => {
+  let mockDb: any;
+
+  beforeEach(() => {
+    mockDb = {
+      execAsync: jest.fn(),
+      runAsync: jest.fn(),
+      getFirstAsync: jest.fn(),
+      getAllAsync: jest.fn(),
+    };
+    (SQLite.openDatabaseAsync as jest.Mock).mockResolvedValue(mockDb);
+  });
+
+  describe('initDb', () => {
+    it('initializes database with tables and indexes', async () => {
+      await initDb();
+      expect(mockDb.execAsync).toHaveBeenCalled();
+    });
+  });
+
+  describe('Account management', () => {
+    it('finds existing account', async () => {
+      const mockAccount = { id: 'acc-1', bank_name: 'HDFC Bank', account_last4: '0931' };
+      mockDb.getFirstAsync.mockResolvedValue(mockAccount);
+
+      const result = await findAccount('HDFC Bank', '0931');
+      expect(result).toEqual(mockAccount);
+      expect(mockDb.getFirstAsync).toHaveBeenCalledWith(
+        'SELECT * FROM accounts WHERE bank_name = ? AND account_last4 = ?',
+        ['HDFC Bank', '0931']
+      );
+    });
+
+    it('returns null when account not found', async () => {
+      mockDb.getFirstAsync.mockResolvedValue(null);
+      const result = await findAccount('HDFC Bank', '0931');
+      expect(result).toBeNull();
+    });
+
+    it('creates new account', async () => {
+      const account = {
+        id: 'acc-1',
+        bank_name: 'HDFC Bank',
+        account_last4: '0931',
+        account_type: 'savings',
+        nickname: 'My Account',
+        balance: 1000,
+      };
+
+      await createAccount(account);
+      expect(mockDb.runAsync).toHaveBeenCalled();
+    });
+
+    it('gets all accounts', async () => {
+      const mockAccounts = [
+        { id: 'acc-1', bank_name: 'HDFC Bank', account_last4: '0931' },
+        { id: 'acc-2', bank_name: 'Axis Bank', account_last4: '9498' },
+      ];
+      mockDb.getAllAsync.mockResolvedValue(mockAccounts);
+
+      const result = await getAllAccounts();
+      expect(result).toEqual(mockAccounts);
+    });
+
+    it('updates account balance for debit', async () => {
+      await updateAccountBalance('acc-1', 100, 'debit');
+      expect(mockDb.runAsync).toHaveBeenCalledWith(
+        'UPDATE accounts SET balance = balance + ? WHERE id = ?',
+        [-100, 'acc-1']
+      );
+    });
+
+    it('updates account balance for credit', async () => {
+      await updateAccountBalance('acc-1', 500, 'credit');
+      expect(mockDb.runAsync).toHaveBeenCalledWith(
+        'UPDATE accounts SET balance = balance + ? WHERE id = ?',
+        [500, 'acc-1']
+      );
+    });
+  });
+
+  describe('Merchant management', () => {
+    it('finds existing merchant', async () => {
+      const mockMerchant = { id: 'mer-1', name: 'Amazon', default_category: 'shopping' };
+      mockDb.getFirstAsync.mockResolvedValue(mockMerchant);
+
+      const result = await findMerchant('Amazon');
+      expect(result).toEqual(mockMerchant);
+    });
+
+    it('returns null when merchant not found', async () => {
+      mockDb.getFirstAsync.mockResolvedValue(null);
+      const result = await findMerchant('Unknown');
+      expect(result).toBeNull();
+    });
+
+    it('creates new merchant', async () => {
+      const merchant = {
+        id: 'mer-1',
+        name: 'Amazon',
+        default_category: 'shopping',
+      };
+
+      await createMerchant(merchant);
+      expect(mockDb.runAsync).toHaveBeenCalled();
+    });
+
+    it('gets all merchants', async () => {
+      const mockMerchants = [
+        { id: 'mer-1', name: 'Amazon', default_category: 'shopping' },
+        { id: 'mer-2', name: 'Uber', default_category: 'transportation' },
+      ];
+      mockDb.getAllAsync.mockResolvedValue(mockMerchants);
+
+      const result = await getAllMerchants();
+      expect(result).toEqual(mockMerchants);
+    });
+  });
+
+  describe('SMS Feedback management', () => {
+    it('saves feedback', async () => {
+      const feedback = {
+        id: 'fb-1',
+        sms_body: 'Test SMS',
+        merchant: 'Amazon',
+        is_transaction: true,
+      };
+
+      await saveFeedback(feedback);
+      expect(mockDb.runAsync).toHaveBeenCalled();
+    });
+
+    it('checks feedback for merchant - returns true', async () => {
+      mockDb.getFirstAsync.mockResolvedValue({ is_transaction: 1 });
+      const result = await checkFeedback('Amazon');
+      expect(result).toBe(true);
+    });
+
+    it('checks feedback for merchant - returns false', async () => {
+      mockDb.getFirstAsync.mockResolvedValue({ is_transaction: 0 });
+      const result = await checkFeedback('Promo');
+      expect(result).toBe(false);
+    });
+
+    it('checks feedback for merchant - returns null when not found', async () => {
+      mockDb.getFirstAsync.mockResolvedValue(null);
+      const result = await checkFeedback('Unknown');
+      expect(result).toBeNull();
+    });
+  });
+});

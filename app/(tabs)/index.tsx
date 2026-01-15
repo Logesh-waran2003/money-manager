@@ -1,5 +1,10 @@
 import { ManualTransactionModal } from "@/components/ManualTransactionModal";
 import { TransactionList } from "@/components/TransactionList";
+import { SearchBar } from "@/components/SearchBar";
+import { useSearch } from "@/hooks/useSearch";
+import { useUnprocessedCount } from "@/hooks/useUnprocessedCount";
+import { useNotifications } from "@/hooks/useNotifications";
+import { useUnprocessedContext } from "@/contexts/UnprocessedContext";
 import { getDb } from "@/services/db";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -14,10 +19,31 @@ export default function HomeScreen() {
   const [manualModalVisible, setManualModalVisible] = useState(false);
   const router = useRouter();
 
+  const { count, setCount, triggerRefresh } = useUnprocessedContext();
+  const { count: unprocessedCount, refresh: refreshCount } = useUnprocessedCount(triggerRefresh);
+  useNotifications(unprocessedCount);
+
+  const { searchQuery, setSearchQuery, filteredData: searchedTransactions } = useSearch(
+    transactions,
+    (item) => [
+      item.merchant || "",
+      item.amount?.toString() || "",
+      item.category || "",
+      item.remarks || "",
+    ]
+  );
+
   useFocusEffect(
     useCallback(() => {
       loadData();
+      refreshCount();
     }, [])
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      setCount(unprocessedCount);
+    }, [unprocessedCount])
   );
 
   const loadData = async () => {
@@ -55,6 +81,11 @@ export default function HomeScreen() {
             style={styles.inboxButton}
           >
             <Ionicons name="mail-unread-outline" size={20} color="#a855f7" />
+            {count > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{count > 99 ? "99+" : count}</Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -63,8 +94,15 @@ export default function HomeScreen() {
         <Text style={styles.sectionTitle}>Recent Transactions</Text>
       </View>
 
+      {/* Search Bar */}
+      <SearchBar
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+        placeholder="Search transactions..."
+      />
+
       <View style={styles.listContainer}>
-        <TransactionList data={transactions} />
+        <TransactionList data={searchedTransactions} />
       </View>
 
       {/* Floating Action Button */}
@@ -109,6 +147,24 @@ const styles = StyleSheet.create({
     padding: 8,
     backgroundColor: "rgba(168, 85, 247, 0.1)",
     borderRadius: 20,
+    position: "relative",
+  },
+  badge: {
+    position: "absolute",
+    top: 2,
+    right: 2,
+    backgroundColor: "#ef4444",
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 4,
+  },
+  badgeText: {
+    color: "white",
+    fontSize: 11,
+    fontWeight: "bold",
   },
   label: {
     color: "#a1a1aa", // zinc-400
