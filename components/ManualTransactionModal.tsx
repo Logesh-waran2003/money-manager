@@ -1,11 +1,14 @@
+import { Theme } from "@/constants/theme";
+import { CATEGORIES } from "@/services/config/detection";
+import { updateAccountBalance } from "@/services/db";
+import { addTransaction } from "@/services/SmsService";
 import { Ionicons } from "@expo/vector-icons";
 import * as Crypto from "expo-crypto";
-import React, { useState } from "react";
+import * as Haptics from "expo-haptics";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
-  KeyboardAvoidingView,
   Modal,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,7 +17,6 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { CATEGORIES } from "@/services/config/detection";
 
 interface ManualTransactionModalProps {
   visible: boolean;
@@ -24,43 +26,76 @@ interface ManualTransactionModalProps {
   onCreateAccount?: () => void;
 }
 
-const CATEGORY_IDS = CATEGORIES.map(cat => cat.id);
+const CATEGORY_IDS = CATEGORIES.map((cat) => cat.id);
 
-export const ManualTransactionModal: React.FC<
-  ManualTransactionModalProps
-> = ({ visible, onClose, onSuccess, accounts, onCreateAccount }) => {
-  const [amount, setAmount] = useState("");
+export const ManualTransactionModal: React.FC<ManualTransactionModalProps> = ({
+  visible,
+  onClose,
+  onSuccess,
+  accounts,
+  onCreateAccount,
+}) => {
+  const [amount, setAmount] = useState("0");
   const [type, setType] = useState<"debit" | "credit">("debit");
   const [merchant, setMerchant] = useState("");
   const [category, setCategory] = useState("others");
   const [remarks, setRemarks] = useState("");
   const [selectedAccountId, setSelectedAccountId] = useState("");
-  const [showAccountPicker, setShowAccountPicker] = useState(false);
+
+  // View states
+  const [showDetails, setShowDetails] = useState(false); // If true, shows merchant/category inputs instead of numpad
+
+  // Initialize selected account
+  useEffect(() => {
+    if (visible && accounts.length > 0 && !selectedAccountId) {
+      // Default to first account if none selected
+      setSelectedAccountId(accounts[0].id);
+    }
+  }, [visible, accounts]);
 
   const resetForm = () => {
-    setAmount("");
+    setAmount("0");
     setType("debit");
     setMerchant("");
     setCategory("others");
     setRemarks("");
-    setSelectedAccountId("");
+    setShowDetails(false);
+  };
+
+  const handlePressNumber = (num: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (amount === "0" && num !== ".") {
+      setAmount(num);
+    } else {
+      if (num === "." && amount.includes(".")) return;
+      if (amount.replace(".", "").length >= 9) return; // Limit length
+      setAmount(amount + num);
+    }
+  };
+
+  const handleBackspace = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (amount.length === 1) {
+      setAmount("0");
+    } else {
+      setAmount(amount.slice(0, -1));
+    }
   };
 
   const handleSave = async () => {
-    if (!amount || !selectedAccountId) {
-      Alert.alert("Error", "Please enter amount and select account");
+    const numericAmount = parseFloat(amount);
+    if (numericAmount === 0 || !selectedAccountId) {
+      Alert.alert("Error", "Please enter a valid amount");
       return;
     }
 
     try {
-      const { addTransaction } = await import("@/services/SmsService");
-      const { updateAccountBalance } = await import("@/services/db");
-
       await addTransaction({
         id: Crypto.randomUUID(),
         mobile_id: null as any,
-        amount: parseFloat(amount),
-        merchant: merchant || "Manual Entry",
+        amount: numericAmount,
+        merchant:
+          merchant || (type === "credit" ? "Manual Deposit" : "Manual Expense"),
         category,
         date: new Date().toISOString(),
         type,
@@ -70,8 +105,9 @@ export const ManualTransactionModal: React.FC<
         merchant_id: null,
       });
 
-      await updateAccountBalance(selectedAccountId, parseFloat(amount), type);
+      await updateAccountBalance(selectedAccountId, numericAmount, type);
 
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       resetForm();
       onSuccess();
       onClose();
@@ -82,486 +118,452 @@ export const ManualTransactionModal: React.FC<
 
   const selectedAccount = accounts.find((a) => a.id === selectedAccountId);
 
+  const renderNumpad = () => (
+    <View style={styles.numpadContainer}>
+      {[
+        ["1", "2", "3"],
+        ["4", "5", "6"],
+        ["7", "8", "9"],
+        [".", "0", "backspace"],
+      ].map((row, rowIndex) => (
+        <View key={rowIndex} style={styles.numpadRow}>
+          {row.map((item) => (
+            <TouchableOpacity
+              key={item}
+              style={styles.numpadButton}
+              onPress={() =>
+                item === "backspace"
+                  ? handleBackspace()
+                  : handlePressNumber(item)
+              }
+            >
+              {item === "backspace" ? (
+                <Ionicons
+                  name="backspace-outline"
+                  size={28}
+                  color={Theme.colors.textPrimary}
+                />
+              ) : (
+                <Text style={styles.numpadText}>{item}</Text>
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
+      ))}
+    </View>
+  );
+
   return (
     <Modal
       visible={visible}
       animationType="slide"
-      transparent={true}
-      statusBarTranslucent
+      presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <View style={styles.modalContainer}>
-        <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-            style={styles.keyboardView}
+      <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <Ionicons
+              name="close"
+              size={24}
+              color={Theme.colors.textSecondary}
+            />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>New Transaction</Text>
+          <TouchableOpacity
+            onPress={() => setShowDetails(!showDetails)}
+            style={styles.detailsButton}
           >
-            {/* Header */}
-            <View style={styles.header}>
-              <Text style={styles.headerTitle}>Add Transaction</Text>
-              <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                <Ionicons name="close" size={24} color="#a1a1aa" />
-              </TouchableOpacity>
-            </View>
+            <Text style={styles.detailsButtonText}>
+              {showDetails ? "Numpad" : "Details"}
+            </Text>
+          </TouchableOpacity>
+        </View>
 
-            <ScrollView
-              style={styles.scrollView}
-              contentContainerStyle={styles.scrollContent}
-              keyboardShouldPersistTaps="handled"
+        <ScrollView contentContainerStyle={styles.content}>
+          {/* Amount Display */}
+          <View style={styles.amountContainer}>
+            <View style={styles.currencyBadge}>
+              <Text style={styles.currencySymbol}>₹</Text>
+            </View>
+            <Text
+              style={[
+                styles.amountText,
+                {
+                  color:
+                    type === "credit"
+                      ? Theme.colors.success
+                      : Theme.colors.textPrimary,
+                },
+              ]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
             >
-              {/* Type Selection */}
-              <Text style={styles.label}>Type</Text>
-              <View style={styles.typeContainer}>
-                <TouchableOpacity
-                  style={[
-                    styles.typeButton,
-                    type === "debit" && styles.typeButtonActive,
-                  ]}
-                  onPress={() => setType("debit")}
-                >
-                  <Ionicons
-                    name="arrow-up"
-                    size={20}
-                    color={type === "debit" ? "#ef4444" : "#71717a"}
-                  />
-                  <Text
-                    style={[
-                      styles.typeButtonText,
-                      type === "debit" && styles.typeButtonTextActive,
-                    ]}
-                  >
-                    Expense
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.typeButton,
-                    type === "credit" && styles.typeButtonActive,
-                  ]}
-                  onPress={() => setType("credit")}
-                >
-                  <Ionicons
-                    name="arrow-down"
-                    size={20}
-                    color={type === "credit" ? "#22c55e" : "#71717a"}
-                  />
-                  <Text
-                    style={[
-                      styles.typeButtonText,
-                      type === "credit" && styles.typeButtonTextActive,
-                    ]}
-                  >
-                    Income
-                  </Text>
-                </TouchableOpacity>
-              </View>
+              {amount}
+            </Text>
+          </View>
 
-              {/* Amount */}
-              <Text style={styles.label}>Amount</Text>
-              <TextInput
-                style={styles.amountInput}
-                value={amount}
-                onChangeText={setAmount}
-                keyboardType="numeric"
-                placeholder="0.00"
-                placeholderTextColor="#52525b"
-              />
-
-              {/* Account */}
-              <Text style={styles.label}>Account</Text>
-              <TouchableOpacity
-                style={styles.accountSelector}
-                onPress={() => setShowAccountPicker(true)}
-              >
-                <View style={styles.accountInfo}>
-                  <Ionicons name="wallet-outline" size={20} color="#a1a1aa" />
-                  <Text
-                    style={[
-                      styles.accountSelectorText,
-                      !selectedAccount && styles.placeholderText,
-                    ]}
-                  >
-                    {selectedAccount?.nickname || "Select Account"}
-                  </Text>
-                </View>
-                <Ionicons name="chevron-down" size={20} color="#71717a" />
-              </TouchableOpacity>
-
-              {/* Merchant */}
-              <Text style={styles.label}>Merchant/Description</Text>
-              <TextInput
-                style={styles.input}
-                value={merchant}
-                onChangeText={setMerchant}
-                placeholder="Enter merchant name"
-                placeholderTextColor="#52525b"
-              />
-
-              {/* Category */}
-              <Text style={styles.label}>Category</Text>
-              <View style={styles.categoryContainer}>
-                {CATEGORY_IDS.map((cat) => (
-                  <TouchableOpacity
-                    key={cat}
-                    style={[
-                      styles.categoryChip,
-                      category === cat && styles.categoryChipActive,
-                    ]}
-                    onPress={() => setCategory(cat)}
-                  >
-                    <Text
-                      style={[
-                        styles.categoryChipText,
-                        category === cat && styles.categoryChipTextActive,
-                      ]}
-                    >
-                      {cat.replace("_", " ")}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              {/* Remarks */}
-              <Text style={styles.label}>Remarks (Optional)</Text>
-              <TextInput
-                style={[styles.input, styles.remarksInput]}
-                value={remarks}
-                onChangeText={setRemarks}
-                placeholder="Add notes..."
-                placeholderTextColor="#52525b"
-                multiline
-                numberOfLines={3}
-              />
-            </ScrollView>
-
-            {/* Footer */}
-            <View style={styles.footer}>
-              <TouchableOpacity
-                style={[styles.button, styles.cancelButton]}
-                onPress={onClose}
-              >
-                <Text style={styles.buttonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.button, styles.saveButton]}
-                onPress={handleSave}
-              >
-                <Text style={styles.buttonText}>Save</Text>
-              </TouchableOpacity>
-            </View>
-          </KeyboardAvoidingView>
-
-          {/* Account Picker */}
-          <Modal
-            visible={showAccountPicker}
-            animationType="fade"
-            transparent={true}
-            onRequestClose={() => setShowAccountPicker(false)}
-          >
+          {/* Type Toggle */}
+          <View style={styles.toggleContainer}>
             <TouchableOpacity
-              style={styles.pickerOverlay}
-              activeOpacity={1}
-              onPress={() => setShowAccountPicker(false)}
+              style={[
+                styles.toggleButton,
+                type === "debit" && styles.toggleButtonActive,
+              ]}
+              onPress={() => setType("debit")}
             >
-              <View style={styles.pickerContainer}>
-                <Text style={styles.pickerTitle}>Select Account</Text>
-                <ScrollView style={styles.pickerList}>
-                  {accounts.map((acc) => (
-                    <TouchableOpacity
-                      key={acc.id}
-                      style={styles.pickerItem}
-                      onPress={() => {
-                        setSelectedAccountId(acc.id);
-                        setShowAccountPicker(false);
-                      }}
-                    >
-                      <View style={styles.pickerItemIcon}>
-                        <Ionicons
-                          name={
-                            acc.account_type === "credit_card"
-                              ? "card-outline"
-                              : "wallet-outline"
-                          }
-                          size={24}
-                          color="#a855f7"
-                        />
-                      </View>
-                      <View>
-                        <Text style={styles.pickerItemTitle}>
-                          {acc.nickname}
-                        </Text>
-                        <Text style={styles.pickerItemSubtitle}>
-                          {acc.bank_name} • {acc.account_type}
-                        </Text>
-                      </View>
-                      {selectedAccountId === acc.id && (
-                        <Ionicons
-                          name="checkmark"
-                          size={24}
-                          color="#22c55e"
-                          style={{ marginLeft: "auto" }}
-                        />
-                      )}
-                    </TouchableOpacity>
-                  ))}
+              <Text
+                style={[
+                  styles.toggleText,
+                  type === "debit" && styles.toggleTextActive,
+                ]}
+              >
+                Expense
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.toggleButton,
+                type === "credit" && styles.toggleCreditActive,
+              ]}
+              onPress={() => setType("credit")}
+            >
+              <Text
+                style={[
+                  styles.toggleText,
+                  type === "credit" && styles.toggleTextActive,
+                ]}
+              >
+                Income
+              </Text>
+            </TouchableOpacity>
+          </View>
 
-                  {/* Add New Account Button */}
-                  {onCreateAccount && (
+          {/* Account Selector (Quick) */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.accountScroll}
+          >
+            {accounts.map((acc) => (
+              <TouchableOpacity
+                key={acc.id}
+                style={[
+                  styles.accountChip,
+                  selectedAccountId === acc.id && styles.accountChipActive,
+                ]}
+                onPress={() => setSelectedAccountId(acc.id)}
+              >
+                <Ionicons
+                  name={
+                    acc.account_type === "credit_card"
+                      ? "card-outline"
+                      : "wallet-outline"
+                  }
+                  size={16}
+                  color={
+                    selectedAccountId === acc.id
+                      ? Theme.colors.primary
+                      : Theme.colors.textTertiary
+                  }
+                />
+                <Text
+                  style={[
+                    styles.accountChipText,
+                    selectedAccountId === acc.id &&
+                      styles.accountChipTextActive,
+                  ]}
+                >
+                  {acc.nickname}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          {/* Main Content Area (Numpad or Details) */}
+          {showDetails ? (
+            <View style={styles.detailsForm}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Merchant / Title</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder={
+                    type === "credit"
+                      ? "Salary, Refund, etc."
+                      : "Uber, Amazon, etc."
+                  }
+                  placeholderTextColor={Theme.colors.textTertiary}
+                  value={merchant}
+                  onChangeText={setMerchant}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Category</Text>
+                <View style={styles.categoryGrid}>
+                  {CATEGORY_IDS.map((cat) => (
                     <TouchableOpacity
-                      style={styles.addNewAccountButton}
-                      onPress={() => {
-                        setShowAccountPicker(false);
-                        onCreateAccount();
-                      }}
+                      key={cat}
+                      style={[
+                        styles.catChip,
+                        category === cat && styles.catChipActive,
+                      ]}
+                      onPress={() => setCategory(cat)}
                     >
-                      <Ionicons
-                        name="add-circle-outline"
-                        size={24}
-                        color="#22c55e"
-                      />
-                      <Text style={styles.addNewAccountText}>
-                        Add New Account
+                      <Text
+                        style={[
+                          styles.catText,
+                          category === cat && styles.catTextActive,
+                        ]}
+                      >
+                        {cat.replace(/_/g, " ")}
                       </Text>
                     </TouchableOpacity>
-                  )}
-                </ScrollView>
+                  ))}
+                </View>
               </View>
-            </TouchableOpacity>
-          </Modal>
-        </SafeAreaView>
-      </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Remarks</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Optional notes"
+                  placeholderTextColor={Theme.colors.textTertiary}
+                  value={remarks}
+                  onChangeText={setRemarks}
+                />
+              </View>
+            </View>
+          ) : (
+            renderNumpad()
+          )}
+        </ScrollView>
+
+        {/* Floating Save Button */}
+        <View style={styles.footer}>
+          <TouchableOpacity
+            style={[
+              styles.saveButton,
+              { opacity: parseFloat(amount) > 0 ? 1 : 0.5 },
+            ]}
+            onPress={handleSave}
+            disabled={parseFloat(amount) === 0}
+          >
+            <Text style={styles.saveButtonText}>Save Transaction</Text>
+            <Ionicons name="checkmark-circle" size={24} color="white" />
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
-  modalContainer: {
+  container: {
     flex: 1,
-    backgroundColor: "#09090B",
-  },
-  safeArea: {
-    flex: 1,
-  },
-  keyboardView: {
-    flex: 1,
+    backgroundColor: Theme.colors.background,
   },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#27272a",
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "white",
+    padding: Theme.spacing.lg,
   },
   closeButton: {
-    padding: 4,
+    padding: 8,
+    borderRadius: Theme.borderRadius.full,
+    backgroundColor: Theme.colors.surface,
   },
-  scrollView: {
-    flex: 1,
+  headerTitle: {
+    fontSize: Theme.typography.sizes.lg,
+    fontFamily: Theme.typography.fontFamily.semibold,
+    color: Theme.colors.textPrimary,
   },
-  scrollContent: {
-    padding: 20,
+  detailsButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: Theme.borderRadius.full,
+    backgroundColor: Theme.colors.surface,
   },
-  label: {
-    color: "#e4e4e7",
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: 8,
-    marginTop: 16,
+  detailsButtonText: {
+    fontSize: Theme.typography.sizes.sm,
+    fontFamily: Theme.typography.fontFamily.medium,
+    color: Theme.colors.primary,
   },
-  typeContainer: {
-    flexDirection: "row",
-    gap: 12,
+  content: {
+    paddingHorizontal: Theme.spacing.lg,
   },
-  typeButton: {
-    flex: 1,
-    flexDirection: "row",
+  amountContainer: {
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#18181b",
+    marginVertical: 30, // Space for the big amount
+  },
+  currencyBadge: {
+    marginBottom: 8,
+    backgroundColor: Theme.colors.surface,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: Theme.borderRadius.full,
+  },
+  currencySymbol: {
+    fontSize: Theme.typography.sizes.sm,
+    color: Theme.colors.textSecondary,
+    fontFamily: Theme.typography.fontFamily.medium,
+  },
+  amountText: {
+    fontSize: 56, // Massive
+    fontFamily: Theme.typography.fontFamily.bold,
+    color: Theme.colors.textPrimary,
+    letterSpacing: -1,
+  },
+  toggleContainer: {
+    flexDirection: "row",
+    backgroundColor: Theme.colors.surface,
+    borderRadius: Theme.borderRadius.full,
+    padding: 4,
+    marginBottom: 24,
+  },
+  toggleButton: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: "center",
+    borderRadius: Theme.borderRadius.full,
+  },
+  toggleButtonActive: {
+    backgroundColor: "rgba(239, 68, 68, 0.15)", // Light red
+  },
+  toggleCreditActive: {
+    backgroundColor: "rgba(34, 197, 94, 0.15)", // Light green
+  },
+  toggleText: {
+    fontSize: Theme.typography.sizes.sm,
+    fontFamily: Theme.typography.fontFamily.medium,
+    color: Theme.colors.textSecondary,
+  },
+  toggleTextActive: {
+    color: Theme.colors.textPrimary,
+    fontFamily: Theme.typography.fontFamily.semibold,
+  },
+  accountScroll: {
+    flexGrow: 0,
+    marginBottom: 24,
+  },
+  accountChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: Theme.borderRadius.full,
+    backgroundColor: Theme.colors.surface,
     borderWidth: 1,
-    borderColor: "#3f3f46",
-    borderRadius: 12,
-    padding: 16,
+    borderColor: Theme.colors.borderSubtle,
+    marginRight: 8,
+  },
+  accountChipActive: {
+    borderColor: Theme.colors.primary,
+    backgroundColor: Theme.colors.surfaceHighlight,
+  },
+  accountChipText: {
+    fontSize: Theme.typography.sizes.sm,
+    color: Theme.colors.textSecondary,
+    fontFamily: Theme.typography.fontFamily.medium,
+  },
+  accountChipTextActive: {
+    color: Theme.colors.textPrimary,
+  },
+
+  // Numpad Styles
+  numpadContainer: {
+    marginTop: 10,
+    gap: 16,
+  },
+  numpadRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+  },
+  numpadButton: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: Theme.colors.surface,
+  },
+  numpadText: {
+    fontSize: 28,
+    fontFamily: Theme.typography.fontFamily.medium,
+    color: Theme.colors.textPrimary,
+  },
+
+  // Details Form
+  detailsForm: {
+    gap: 20,
+  },
+  inputGroup: {
     gap: 8,
   },
-  typeButtonActive: {
-    backgroundColor: "rgba(168, 85, 247, 0.1)",
-    borderColor: "#a855f7",
-  },
-  typeButtonText: {
-    color: "#71717a",
-    fontSize: 16,
-    fontWeight: "500",
-  },
-  typeButtonTextActive: {
-    color: "#a855f7",
-    fontWeight: "600",
-  },
-  amountInput: {
-    backgroundColor: "#18181b",
-    borderWidth: 2,
-    borderColor: "#a855f7",
-    borderRadius: 12,
-    padding: 14,
-    color: "white",
-    fontSize: 24,
-    fontWeight: "bold",
-  },
-  accountSelector: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#27272a",
-    borderWidth: 1,
-    borderColor: "#3f3f46",
-    borderRadius: 12,
-    padding: 14,
-  },
-  accountInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  accountSelectorText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "500",
-  },
-  placeholderText: {
-    color: "#a1a1aa",
+  label: {
+    fontSize: Theme.typography.sizes.sm,
+    color: Theme.colors.textSecondary,
+    fontFamily: Theme.typography.fontFamily.medium,
   },
   input: {
-    backgroundColor: "#18181b",
+    backgroundColor: Theme.colors.surface,
+    borderRadius: Theme.borderRadius.lg,
+    padding: 16,
+    color: Theme.colors.textPrimary,
+    fontSize: Theme.typography.sizes.base,
     borderWidth: 1,
-    borderColor: "#3f3f46",
-    borderRadius: 12,
-    padding: 14,
-    color: "white",
-    fontSize: 16,
+    borderColor: Theme.colors.borderSubtle,
   },
-  remarksInput: {
-    minHeight: 80,
-    textAlignVertical: "top",
-  },
-  categoryContainer: {
+  categoryGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
   },
-  categoryChip: {
+  catChip: {
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: "#18181b",
+    borderRadius: Theme.borderRadius.md,
+    backgroundColor: Theme.colors.surface,
     borderWidth: 1,
-    borderColor: "#3f3f46",
+    borderColor: Theme.colors.borderSubtle,
   },
-  categoryChipActive: {
-    backgroundColor: "rgba(168, 85, 247, 0.2)",
-    borderColor: "#a855f7",
+  catChipActive: {
+    borderColor: Theme.colors.primary,
+    backgroundColor: Theme.colors.surfaceHighlight,
   },
-  categoryChipText: {
-    color: "#a1a1aa",
+  catText: {
     fontSize: 12,
-    fontWeight: "500",
+    color: Theme.colors.textTertiary,
     textTransform: "capitalize",
   },
-  categoryChipTextActive: {
-    color: "#a855f7",
-    fontWeight: "600",
+  catTextActive: {
+    color: Theme.colors.textPrimary,
+    fontFamily: Theme.typography.fontFamily.medium,
   },
+
   footer: {
-    flexDirection: "row",
-    gap: 12,
-    padding: 20,
+    padding: Theme.spacing.lg, // Removed Platform.OS checks as any required padding is handled by SafeAreaView
     borderTopWidth: 1,
-    borderTopColor: "#27272a",
-  },
-  button: {
-    flex: 1,
-    padding: 16,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  cancelButton: {
-    backgroundColor: "#27272a",
+    borderTopColor: Theme.colors.borderSubtle,
+    backgroundColor: Theme.colors.background,
   },
   saveButton: {
-    backgroundColor: "#22c55e",
-  },
-  buttonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  pickerOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.7)",
-    justifyContent: "center",
-    padding: 20,
-  },
-  pickerContainer: {
-    backgroundColor: "#18181b",
-    borderRadius: 20,
-    maxHeight: "60%",
-    padding: 20,
-    borderWidth: 1,
-    borderColor: "#3f3f46",
-  },
-  pickerTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "white",
-    marginBottom: 20,
-    textAlign: "center",
-  },
-  pickerList: {
-    maxHeight: 400,
-  },
-  pickerItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#27272a",
-    gap: 12,
-  },
-  pickerItemIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(168, 85, 247, 0.1)",
     justifyContent: "center",
-    alignItems: "center",
-  },
-  pickerItemTitle: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  pickerItemSubtitle: {
-    color: "#a1a1aa",
-    fontSize: 13,
-    marginTop: 2,
-  },
-  addNewAccountButton: {
-    flexDirection: "row",
-    alignItems: "center",
+    backgroundColor: Theme.colors.primary,
     paddingVertical: 16,
-    borderTopWidth: 1,
-    borderTopColor: "#27272a",
-    marginTop: 8,
-    gap: 12,
+    borderRadius: Theme.borderRadius.full,
+    gap: 8,
   },
-  addNewAccountText: {
-    color: "#22c55e",
-    fontSize: 16,
-    fontWeight: "bold",
+  saveButtonText: {
+    color: Theme.colors.textInverse,
+    fontSize: Theme.typography.sizes.base,
+    fontFamily: Theme.typography.fontFamily.bold,
   },
 });

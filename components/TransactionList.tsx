@@ -1,4 +1,8 @@
+import { Theme } from "@/constants/theme";
+import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { useState } from "react";
+import { Text, View } from "react-native";
 import Animated, {
   Extrapolation,
   interpolate,
@@ -13,18 +17,6 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { TransactionCard } from "./ui/TransactionCard";
-
-import * as Haptics from "expo-haptics";
-
-// Mock Data
-const MOCK_TRANSACTIONS = Array.from({ length: 20 }).map((_, i) => ({
-  id: i.toString(),
-  merchant: i % 2 === 0 ? "Uber" : "Starbucks",
-  amount: `$${(Math.random() * 100).toFixed(2)}`,
-  date: "Today, 10:23 AM",
-  category: i % 2 === 0 ? "Transport" : "Food",
-  type: i % 5 === 0 ? "credit" : ("debit" as "credit" | "debit"),
-}));
 
 const AnimatedItem = ({
   item,
@@ -41,34 +33,27 @@ const AnimatedItem = ({
 
   // Trigger entry animation on mount
   useState(() => {
-    opacity.value = withDelay(index * 100, withTiming(1, { duration: 500 }));
-    translateY.value = withDelay(index * 100, withSpring(0, { damping: 12 }));
+    opacity.value = withDelay(index * 50, withTiming(1, { duration: 400 })); // Faster stagger
+    translateY.value = withDelay(
+      index * 50,
+      withSpring(0, { damping: 20, stiffness: 90 }), // Less bounce
+    );
   });
 
-  // Scroll Animation (Scale/Dim based on scroll position)
+  // Scroll Animation (Scale/Dim based on scroll position - specialized for premium feel)
   const animatedStyle = useAnimatedStyle(() => {
     const itemSize = 80; // Approx height + margin
     const offset = index * itemSize;
 
-    // Calculate how far the item is from the top of the scroll view
-    const inputRange = [-1, 0, itemSize * index, itemSize * (index + 2)];
-
     const scale = interpolate(
       scrollY.value,
       [offset - 100, offset, offset + 100],
-      [1, 1, 0.9], // Scale down as it goes up
-      Extrapolation.CLAMP
-    );
-
-    const itemOpacity = interpolate(
-      scrollY.value,
-      [offset - 100, offset, offset + 100],
-      [1, 1, 0.5], // Fade out as it goes up
-      Extrapolation.CLAMP
+      [1, 1, 0.98], // Very subtle scale effect
+      Extrapolation.CLAMP,
     );
 
     return {
-      opacity: opacity.value * itemOpacity,
+      opacity: opacity.value,
       transform: [{ translateY: translateY.value }, { scale: scale }],
     };
   });
@@ -90,22 +75,77 @@ export function TransactionList({ data }: { data?: any[] }) {
   useAnimatedReaction(
     () => scrollY.value,
     (current, previous) => {
-      if (current < -50 && (previous ?? 0) >= -50) {
+      // Light haptic on overscroll top
+      if (current < -80 && (previous ?? 0) >= -80) {
         runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Light);
       }
-    }
+    },
   );
 
-  const listData = data || MOCK_TRANSACTIONS;
+  const listData = data || [];
 
   return (
     <Animated.FlatList
       data={listData}
-      keyExtractor={(item) => item.id}
+      keyExtractor={(item) => item.id.toString()}
       renderItem={({ item, index }) => (
         <AnimatedItem item={item} index={index} scrollY={scrollY} />
       )}
-      contentContainerStyle={{ padding: 20, paddingBottom: 200 }}
+      contentContainerStyle={{
+        paddingHorizontal: 20,
+        paddingBottom: 100,
+        paddingTop: 10,
+        flexGrow: 1,
+      }}
+      ListEmptyComponent={
+        <Animated.View
+          style={{
+            marginTop: 50,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <View style={{ alignItems: "center", gap: 12, paddingVertical: 20 }}>
+            <View
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: 24,
+                backgroundColor: Theme.colors.surfaceHighlight,
+                alignItems: "center",
+                justifyContent: "center",
+                marginBottom: 4,
+              }}
+            >
+              <Ionicons
+                name="receipt-outline"
+                size={24}
+                color={Theme.colors.textSecondary}
+              />
+            </View>
+            <View style={{ alignItems: "center" }}>
+              <Text
+                style={{
+                  color: Theme.colors.textSecondary,
+                  fontSize: Theme.typography.sizes.base,
+                  fontFamily: Theme.typography.fontFamily.medium,
+                }}
+              >
+                No transactions yet
+              </Text>
+              <Text
+                style={{
+                  color: Theme.colors.textTertiary,
+                  fontSize: Theme.typography.sizes.sm,
+                  marginTop: 4,
+                }}
+              >
+                Start spending to see activity
+              </Text>
+            </View>
+          </View>
+        </Animated.View>
+      }
       onScroll={scrollHandler}
       scrollEventThrottle={16}
       showsVerticalScrollIndicator={false}

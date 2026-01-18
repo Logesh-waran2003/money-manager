@@ -6,14 +6,17 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        black: "#000000",
         zinc: {
-          950: "#09090B", // Deep Space Background
+          950: "#09090B", // Secondary Background
+          900: "#18181B", // Surfaces
         },
-        neon: {
-          primary: "#00FF94", // Cyberpunk Green
-          secondary: "#FF0055", // Neon Red/Pink
-          blue: "#00F0FF", // Electric Blue
-        },
+      },
+      fontFamily: {
+        sans: ["Inter_400Regular"],
+        medium: ["Inter_500Medium"],
+        semibold: ["Inter_600SemiBold"],
+        bold: ["Inter_700Bold"],
       },
     },
   },

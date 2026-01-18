@@ -1,14 +1,10 @@
+import { Theme } from "@/constants/theme";
 import { UnprocessedSms, getSmartDetails } from "@/services/SmsService";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useMemo } from "react";
-import {
-  Pressable,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import Swipeable from "react-native-gesture-handler/Swipeable";
+import { AmountText } from "../ui/AmountText";
 
 interface SmsListItemProps {
   item: UnprocessedSms;
@@ -33,15 +29,18 @@ const formatDate = (timestamp: string) => {
   return date.toLocaleDateString([], { month: "short", day: "numeric" });
 };
 
+import { RectButton } from "react-native-gesture-handler";
+
 export const SmsListItem: React.FC<SmsListItemProps> = ({
   item,
   onPress,
   onIgnore,
   onRestore,
 }) => {
+  const swipeableRef = React.useRef<Swipeable>(null);
   const parsed = useMemo(
     () => getSmartDetails(item.body, item.address),
-    [item.body, item.address]
+    [item.body, item.address],
   );
   const isTransaction = parsed.isTransaction;
   const isCredit = parsed.type === "credit";
@@ -52,38 +51,50 @@ export const SmsListItem: React.FC<SmsListItemProps> = ({
     if (item.isIgnored) {
       return (
         <View style={[styles.rightAction, styles.restoreAction]}>
-          <TouchableOpacity
+          <RectButton
             style={styles.actionButton}
-            onPress={() => onRestore?.(item.id)}
+            onPress={() => {
+              swipeableRef.current?.close();
+              onRestore?.(item.id);
+            }}
           >
-            <Ionicons name="refresh-outline" size={24} color="white" />
+            <Ionicons
+              name="refresh-outline"
+              size={24}
+              color={Theme.colors.textPrimary}
+            />
             <Text style={styles.actionText}>Restore</Text>
-          </TouchableOpacity>
+          </RectButton>
         </View>
       );
     }
 
     return (
       <View style={styles.rightAction}>
-        <TouchableOpacity
+        <RectButton
           style={styles.actionButton}
-          onPress={() => onIgnore(item.id)}
+          onPress={() => {
+            swipeableRef.current?.close();
+            onIgnore(item.id);
+          }}
         >
-          <Ionicons name="trash-outline" size={24} color="white" />
+          <Ionicons
+            name="trash-outline"
+            size={24}
+            color={Theme.colors.textPrimary}
+          />
           <Text style={styles.actionText}>Spam</Text>
-        </TouchableOpacity>
+        </RectButton>
       </View>
     );
   };
 
   return (
-    <Swipeable renderRightActions={renderRightActions}>
+    <Swipeable ref={swipeableRef} renderRightActions={renderRightActions}>
       <Pressable
         style={({ pressed }) => [
           styles.smsItem,
           pressed && styles.smsItemPressed,
-          isTransaction &&
-            (isCredit ? styles.creditBorder : styles.debitBorder),
           item.isIgnored && styles.ignoredItem,
         ]}
         onPress={() => !item.isProcessed && onPress(item)}
@@ -94,29 +105,30 @@ export const SmsListItem: React.FC<SmsListItemProps> = ({
             <View
               style={[
                 styles.iconCircle,
-                !isTransaction
-                  ? styles.iconUnknown
-                  : isCredit
-                  ? styles.iconCredit
-                  : styles.iconDebit,
-                item.isProcessed && styles.iconProcessed, // Optional: dim icon if processed
+                {
+                  backgroundColor: !isTransaction
+                    ? Theme.colors.surfaceHighlight
+                    : isCredit
+                      ? "rgba(16, 185, 129, 0.1)"
+                      : "rgba(244, 63, 94, 0.1)",
+                },
               ]}
             >
               <Ionicons
                 name={
                   !isTransaction
-                    ? "alert"
+                    ? "chatbubble-ellipses-outline"
                     : isCredit
-                    ? "arrow-down"
-                    : "arrow-up"
+                      ? "arrow-down"
+                      : "arrow-up"
                 }
-                size={20}
+                size={18}
                 color={
                   !isTransaction
-                    ? "#fbbf24" // Amber
+                    ? Theme.colors.textTertiary
                     : isCredit
-                    ? "#22c55e"
-                    : "#ef4444" // Green or Red
+                      ? Theme.colors.success
+                      : Theme.colors.error
                 }
               />
             </View>
@@ -133,16 +145,16 @@ export const SmsListItem: React.FC<SmsListItemProps> = ({
 
             {isTransaction ? (
               <View style={styles.transactionDetails}>
-                <Text
-                  style={[
-                    styles.amount,
-                    isCredit ? styles.amountCredit : styles.amountDebit,
-                  ]}
-                >
-                  {isCredit ? "+" : "-"}₹{parsed.amount}
-                </Text>
+                <AmountText
+                  value={parseFloat(parsed.amount || "0")}
+                  type={isCredit ? "income" : "expense"}
+                  size="lg"
+                  showSign
+                />
                 <View style={styles.categoryBadge}>
-                  <Text style={styles.categoryText}>{parsed.category}</Text>
+                  <Text style={styles.categoryText}>
+                    {parsed.category || "Uncategorized"}
+                  </Text>
                 </View>
               </View>
             ) : (
@@ -160,8 +172,8 @@ export const SmsListItem: React.FC<SmsListItemProps> = ({
                   <View style={styles.processedBadge}>
                     <Ionicons
                       name="checkmark-circle"
-                      size={14}
-                      color="#22c55e"
+                      size={12}
+                      color={Theme.colors.success}
                     />
                     <Text style={styles.processedText}>Added</Text>
                   </View>
@@ -177,49 +189,34 @@ export const SmsListItem: React.FC<SmsListItemProps> = ({
 
 const styles = StyleSheet.create({
   smsItem: {
-    backgroundColor: "#18181b",
-    marginBottom: 12,
-    borderRadius: 16,
+    backgroundColor: Theme.colors.surface,
+    marginBottom: 8,
+    borderRadius: Theme.borderRadius.lg,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: "#27272a",
+    borderColor: Theme.colors.borderSubtle,
   },
   smsItemPressed: {
-    backgroundColor: "#27272a",
+    backgroundColor: Theme.colors.surfaceHighlight,
   },
-  creditBorder: {
-    borderLeftWidth: 4,
-    borderLeftColor: "#22c55e",
-  },
-  debitBorder: {
-    borderLeftWidth: 4,
-    borderLeftColor: "#ef4444",
+  ignoredItem: {
+    opacity: 0.5,
   },
   contentContainer: {
     flexDirection: "row",
-    padding: 16,
-    gap: 12,
+    padding: Theme.spacing.md,
+    gap: Theme.spacing.md,
   },
   iconContainer: {
     justifyContent: "flex-start",
     paddingTop: 2,
   },
   iconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: Theme.borderRadius.full,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#27272a",
-  },
-  iconCredit: {
-    backgroundColor: "rgba(34, 197, 94, 0.1)",
-  },
-  iconDebit: {
-    backgroundColor: "rgba(239, 68, 68, 0.1)",
-  },
-  iconUnknown: {
-    backgroundColor: "rgba(251, 191, 36, 0.1)",
   },
   mainContent: {
     flex: 1,
@@ -231,53 +228,42 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   sender: {
-    color: "#e4e4e7",
-    fontSize: 16,
-    fontWeight: "600",
+    color: Theme.colors.textPrimary,
+    fontSize: Theme.typography.sizes.base,
+    fontFamily: Theme.typography.fontFamily.medium,
     flex: 1,
     marginRight: 8,
   },
   date: {
-    color: "#71717a",
-    fontSize: 12,
+    color: Theme.colors.textTertiary,
+    fontSize: Theme.typography.sizes.xs,
+    fontFamily: Theme.typography.fontFamily.sans,
   },
   transactionDetails: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: Theme.spacing.sm,
     marginTop: 2,
   },
-  amount: {
-    fontSize: 18,
-    fontWeight: "bold",
-    letterSpacing: -0.5,
-  },
-  amountCredit: {
-    color: "#22c55e",
-  },
-  amountDebit: {
-    color: "#e4e4e7", // White for debit to separate from error red, but clean
-  },
   categoryBadge: {
-    backgroundColor: "#27272a",
-    paddingHorizontal: 8,
+    backgroundColor: Theme.colors.surfaceHighlight,
+    paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: "#3f3f46",
+    borderRadius: Theme.borderRadius.sm,
   },
   categoryText: {
-    color: "#a1a1aa",
+    color: Theme.colors.textSecondary,
     fontSize: 10,
-    fontWeight: "500",
+    fontFamily: Theme.typography.fontFamily.medium,
     textTransform: "capitalize",
   },
   accountText: {
-    color: "#71717a",
-    fontSize: 12,
+    color: Theme.colors.textTertiary,
+    fontSize: Theme.typography.sizes.xs,
+    marginTop: 2,
   },
   accountRow: {
-    marginTop: 4,
+    marginTop: 2,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
@@ -286,51 +272,43 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: "rgba(34, 197, 94, 0.1)",
-    paddingHorizontal: 8,
+    backgroundColor: "rgba(16, 185, 129, 0.1)",
+    paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 12,
+    borderRadius: Theme.borderRadius.full,
   },
   processedText: {
-    color: "#22c55e",
+    color: Theme.colors.success,
     fontSize: 10,
-    fontWeight: "600",
+    fontFamily: Theme.typography.fontFamily.medium,
   },
   bodyPreview: {
-    color: "#71717a",
-    fontSize: 13,
+    color: Theme.colors.textSecondary,
+    fontSize: Theme.typography.sizes.sm,
     lineHeight: 18,
     marginTop: 2,
   },
   rightAction: {
-    backgroundColor: "#ef4444",
-    justifyContent: "center",
-    alignItems: "center",
+    backgroundColor: Theme.colors.error,
     width: 80,
     height: "100%",
-    marginBottom: 12,
-    borderTopRightRadius: 16,
-    borderBottomRightRadius: 16,
+    marginBottom: 8,
+    borderTopRightRadius: Theme.borderRadius.lg,
+    borderBottomRightRadius: Theme.borderRadius.lg,
+    overflow: "hidden",
   },
   actionButton: {
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    width: "100%",
-    height: "100%",
   },
   actionText: {
-    color: "white",
+    color: Theme.colors.textPrimary,
     fontSize: 12,
     marginTop: 4,
-    fontWeight: "600",
+    fontFamily: Theme.typography.fontFamily.medium,
   },
   restoreAction: {
-    backgroundColor: "#3b82f6", // Blue
-  },
-  ignoredItem: {
-    opacity: 0.5,
-  },
-  iconProcessed: {
-    opacity: 0.5,
+    backgroundColor: Theme.colors.info,
   },
 });

@@ -1,6 +1,8 @@
 import { AccountCreationModal } from "@/components/inbox/AccountCreationModal";
-import { getAllAccounts } from "@/services/db";
+import { AmountText } from "@/components/ui/AmountText";
+import { Theme } from "@/constants/theme";
 import { BANKS } from "@/services/config/detection";
+import { getAllAccounts } from "@/services/db";
 import {
   getNotificationSettings,
   updateNotificationSettings,
@@ -9,6 +11,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import {
+  Alert,
   ScrollView,
   StyleSheet,
   Switch,
@@ -29,7 +32,8 @@ export default function SettingsScreen() {
   const router = useRouter();
 
   const [notifyNewTransactions, setNotifyNewTransactions] = useState(true);
-  const [notifyPendingVerification, setNotifyPendingVerification] = useState(true);
+  const [notifyPendingVerification, setNotifyPendingVerification] =
+    useState(true);
   const [notifyWeeklySummary, setNotifyWeeklySummary] = useState(false);
 
   useFocusEffect(
@@ -49,7 +53,8 @@ export default function SettingsScreen() {
   const handleToggleNotification = async (key: string, value: boolean) => {
     await updateNotificationSettings(key, value);
     if (key === "notify_new_transactions") setNotifyNewTransactions(value);
-    if (key === "notify_pending_verification") setNotifyPendingVerification(value);
+    if (key === "notify_pending_verification")
+      setNotifyPendingVerification(value);
     if (key === "notify_weekly_summary") setNotifyWeeklySummary(value);
   };
 
@@ -63,10 +68,12 @@ export default function SettingsScreen() {
 
     if (!isCash) {
       if (!accountNickname.trim() || !selectedBank || inputLast4.length !== 4) {
+        Alert.alert("Incomplete", "Please fill all fields properly");
         return;
       }
     } else {
       if (!accountNickname.trim()) {
+        Alert.alert("Incomplete", "Please enter a nickname");
         return;
       }
     }
@@ -102,31 +109,24 @@ export default function SettingsScreen() {
     setOpeningBalance("");
   };
 
-  const getAccountIcon = (type: string) => {
-    if (type === "credit_card") return "card-outline";
-    if (type === "current") return "briefcase-outline";
-    if (type === "cash") return "cash-outline";
-    return "wallet-outline";
-  };
-
   const bankAccounts = accounts.filter((a) => a.account_type !== "credit_card");
   const creditCards = accounts.filter((a) => a.account_type === "credit_card");
 
   const getBankColor = (bankName: string) => {
     const name = bankName.toLowerCase();
-    if (name.includes("hdfc")) return "#004c8f"; // HDFC Blue
-    if (name.includes("sbi")) return "#1e3a8a"; // SBI Blue
-    if (name.includes("axis")) return "#97144d"; // Axis Burgundy
-    if (name.includes("icici")) return "#c1541f"; // ICICI Orange
-    if (name.includes("kotak")) return "#da251c"; // Kotak Red
-    if (name.includes("cash")) return "#10b981"; // Emerald Green for Cash
-    return "#3f3f46"; // Default Zinc
+    if (name.includes("hdfc")) return "#004c8f";
+    if (name.includes("sbi")) return "#1e3a8a";
+    if (name.includes("axis")) return "#97144d";
+    if (name.includes("icici")) return "#c1541f";
+    if (name.includes("kotak")) return "#da251c";
+    if (name.includes("cash")) return Theme.colors.success;
+    return Theme.colors.surfaceHighlight;
   };
 
-  const renderAccountCard = (account: any) => (
+  const renderAccountItem = (account: any, isCard = false) => (
     <TouchableOpacity
       key={account.id}
-      style={styles.accountCard}
+      style={styles.accountItem}
       onPress={() =>
         router.push({
           pathname: "/account-details",
@@ -134,223 +134,189 @@ export default function SettingsScreen() {
         })
       }
     >
-      <View style={styles.accountIcon}>
-        <Ionicons
-          name={getAccountIcon(account.account_type)}
-          size={24}
-          color="#a855f7"
-        />
+      <View style={styles.accountIconContainer}>
+        <View
+          style={[
+            styles.bankIcon,
+            {
+              backgroundColor: isCard
+                ? getBankColor(account.bank_name)
+                : Theme.colors.surfaceHighlight,
+            },
+          ]}
+        >
+          <Ionicons
+            name={
+              isCard
+                ? "card"
+                : account.account_type === "cash"
+                ? "cash"
+                : "business"
+            }
+            size={18}
+            color={isCard ? "white" : Theme.colors.textSecondary}
+          />
+        </View>
       </View>
+
       <View style={styles.accountInfo}>
-        <Text style={styles.accountNickname}>{account.nickname}</Text>
-        <Text style={styles.accountDetails}>
-          {account.account_type === "cash"
-            ? "Cash in Hand"
-            : `${account.bank_name} •••• ${account.account_last4}`}
+        <Text style={styles.accountName} numberOfLines={1}>
+          {account.nickname}
+        </Text>
+        <Text style={styles.accountDetail}>
+          {account.bank_name}{" "}
+          {account.account_type !== "cash" && `• ${account.account_last4}`}
         </Text>
       </View>
+
       <View style={styles.accountBalance}>
-        <Text style={styles.balanceAmount}>
-          ₹{account.balance?.toFixed(2) || "0.00"}
-        </Text>
-        <Ionicons name="chevron-forward" size={20} color="#71717a" />
+        <AmountText value={account.balance || 0} size="md" />
       </View>
+
+      <Ionicons
+        name="chevron-forward"
+        size={16}
+        color={Theme.colors.textTertiary}
+      />
     </TouchableOpacity>
   );
 
-  const renderCreditCard = (account: any) => (
-    <TouchableOpacity
-      key={account.id}
-      activeOpacity={0.9}
-      style={[
-        styles.creditCard,
-        { backgroundColor: getBankColor(account.bank_name) },
-      ]}
-      onPress={() =>
-        router.push({
-          pathname: "/account-details",
-          params: { id: account.id },
-        })
-      }
-    >
-      {/* Glossy Overlay */}
-      <View style={styles.cardOverlay} />
-
-      {/* Top Row */}
-      <View style={styles.cardHeader}>
-        <Text style={styles.cardBankName}>{account.bank_name}</Text>
-        <Ionicons name="wifi" size={20} color="rgba(255,255,255,0.6)" />
-      </View>
-
-      {/* Chip */}
-      <View style={styles.cardChip}>
-        <View style={styles.chipLine} />
-        <View style={[styles.chipLine, { left: 12 }]} />
-        <View style={styles.chipBorder} />
-      </View>
-
-      {/* Number */}
-      <Text style={styles.cardNumber}>
-        •••• •••• •••• {account.account_last4}
-      </Text>
-
-      {/* Bottom Row */}
-      <View style={styles.cardFooter}>
-        <View>
-          <Text style={styles.cardLabel}>CARD HOLDER</Text>
-          <Text style={styles.cardHolderName} numberOfLines={1}>
-            {account.nickname}
-          </Text>
-        </View>
-        <View style={{ alignItems: "flex-end" }}>
-          <Text style={styles.cardLabel}>OUTSTANDING</Text>
-          <Text style={styles.cardBalance}>
-            ₹{Math.abs(account.balance || 0).toFixed(2)}
-          </Text>
-        </View>
-      </View>
-    </TouchableOpacity>
+  const renderSectionHeader = (title: string, action?: React.ReactNode) => (
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      {action}
+    </View>
   );
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Settings</Text>
+      </View>
+
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={{ paddingBottom: 100 }}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Settings</Text>
-        </View>
-
-        {/* Accounts Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            Bank Accounts ({bankAccounts.length})
-          </Text>
-
-          {bankAccounts.map((account) => renderAccountCard(account))}
-
-          {bankAccounts.length === 0 && (
-            <View style={styles.emptyState}>
-              <Ionicons name="wallet-outline" size={48} color="#3f3f46" />
-              <Text style={styles.emptyText}>No bank accounts</Text>
-            </View>
+        {/* Accounts Group */}
+        <View style={styles.group}>
+          {renderSectionHeader(
+            "Accounts",
+            <TouchableOpacity onPress={() => setAccountModalVisible(true)}>
+              <Text style={styles.actionText}>Add New</Text>
+            </TouchableOpacity>
           )}
-        </View>
 
-        {/* Cards Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Cards ({creditCards.length})</Text>
-
-          {creditCards.map((account) => renderCreditCard(account))}
-
-          {creditCards.length === 0 && (
-            <View style={styles.emptyState}>
-              <Ionicons name="card-outline" size={48} color="#3f3f46" />
-              <Text style={styles.emptyText}>No cards</Text>
-            </View>
-          )}
-        </View>
-
-        {/* App Settings Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>App Settings</Text>
-
-          <TouchableOpacity
-            style={styles.settingItem}
-            onPress={() => setAccountModalVisible(true)}
-          >
-            <Ionicons name="add-circle-outline" size={20} color="#22c55e" />
-            <Text style={[styles.settingText, { color: "#22c55e" }]}>
-              Add Account Manually
-            </Text>
-            <Ionicons name="chevron-forward" size={20} color="#71717a" />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.settingItem}>
-            <Ionicons name="download-outline" size={20} color="#a1a1aa" />
-            <Text style={styles.settingText}>Export Data</Text>
-            <Ionicons name="chevron-forward" size={20} color="#71717a" />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.settingItem}>
-            <Ionicons name="trash-outline" size={20} color="#ef4444" />
-            <Text style={[styles.settingText, { color: "#ef4444" }]}>
-              Clear All Data
-            </Text>
-            <Ionicons name="chevron-forward" size={20} color="#71717a" />
-          </TouchableOpacity>
-        </View>
-
-        {/* Notifications Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Notifications</Text>
-
-          <View style={styles.settingItem}>
-            <View style={styles.settingLeft}>
-              <Ionicons name="notifications-outline" size={20} color="#a1a1aa" />
-              <View style={styles.settingTextContainer}>
-                <Text style={styles.settingText}>New Transactions</Text>
-                <Text style={styles.settingSubtext}>
-                  Notify when new banking SMS detected
-                </Text>
+          <View style={styles.card}>
+            {bankAccounts.length > 0 && (
+              <View>
+                <Text style={styles.subHeader}>Bank Accounts</Text>
+                {bankAccounts.map((acc) => renderAccountItem(acc))}
               </View>
-            </View>
-            <Switch
-              value={notifyNewTransactions}
-              onValueChange={(value) =>
-                handleToggleNotification("notify_new_transactions", value)
-              }
-              trackColor={{ false: "#3f3f46", true: "#a855f7" }}
-              thumbColor="#fff"
-            />
-          </View>
+            )}
 
-          <View style={styles.settingItem}>
-            <View style={styles.settingLeft}>
-              <Ionicons name="alert-circle-outline" size={20} color="#a1a1aa" />
-              <View style={styles.settingTextContainer}>
-                <Text style={styles.settingText}>Pending Verification</Text>
-                <Text style={styles.settingSubtext}>
-                  Alert when 10+ messages need review
+            {creditCards.length > 0 && (
+              <View
+                style={bankAccounts.length > 0 ? styles.divider : undefined}
+              >
+                <Text
+                  style={[
+                    styles.subHeader,
+                    bankAccounts.length > 0 && { marginTop: 16 },
+                  ]}
+                >
+                  Credit Cards
                 </Text>
+                {creditCards.map((acc) => renderAccountItem(acc, true))}
               </View>
-            </View>
-            <Switch
-              value={notifyPendingVerification}
-              onValueChange={(value) =>
-                handleToggleNotification("notify_pending_verification", value)
-              }
-              trackColor={{ false: "#3f3f46", true: "#a855f7" }}
-              thumbColor="#fff"
-            />
-          </View>
+            )}
 
-          <View style={styles.settingItem}>
-            <View style={styles.settingLeft}>
-              <Ionicons name="calendar-outline" size={20} color="#a1a1aa" />
-              <View style={styles.settingTextContainer}>
-                <Text style={styles.settingText}>Weekly Summary</Text>
-                <Text style={styles.settingSubtext}>
-                  Sunday 8 PM spending summary
-                </Text>
+            {accounts.length === 0 && (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyText}>No accounts added yet</Text>
               </View>
-            </View>
-            <Switch
-              value={notifyWeeklySummary}
-              onValueChange={(value) =>
-                handleToggleNotification("notify_weekly_summary", value)
-              }
-              trackColor={{ false: "#3f3f46", true: "#a855f7" }}
-              thumbColor="#fff"
-            />
+            )}
           </View>
         </View>
+
+        {/* Preferences */}
+        <View style={styles.group}>
+          {renderSectionHeader("Preferences")}
+          <View style={styles.card}>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>New Transactions</Text>
+                <Text style={styles.settingDesc}>
+                  Notify when banking SMS detected
+                </Text>
+              </View>
+              <Switch
+                value={notifyNewTransactions}
+                onValueChange={(val) =>
+                  handleToggleNotification("notify_new_transactions", val)
+                }
+                trackColor={{
+                  false: Theme.colors.surfaceHighlight,
+                  true: Theme.colors.primary,
+                }}
+                thumbColor="white"
+              />
+            </View>
+            <View style={[styles.divider, { marginVertical: 0 }]} />
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Pending Review</Text>
+                <Text style={styles.settingDesc}>
+                  Daily reminder for unprocessed items
+                </Text>
+              </View>
+              <Switch
+                value={notifyPendingVerification}
+                onValueChange={(val) =>
+                  handleToggleNotification("notify_pending_verification", val)
+                }
+                trackColor={{
+                  false: Theme.colors.surfaceHighlight,
+                  true: Theme.colors.primary,
+                }}
+                thumbColor="white"
+              />
+            </View>
+          </View>
+        </View>
+
+        {/* Data Management */}
+        <View style={styles.group}>
+          {renderSectionHeader("Data")}
+          <View style={styles.card}>
+            <TouchableOpacity style={styles.settingRow}>
+              <Text style={styles.settingLabel}>Export Data to JSON</Text>
+              <Ionicons
+                name="download-outline"
+                size={20}
+                color={Theme.colors.textSecondary}
+              />
+            </TouchableOpacity>
+            <View style={[styles.divider, { marginVertical: 0 }]} />
+            <TouchableOpacity style={styles.settingRow}>
+              <Text
+                style={[styles.settingLabel, { color: Theme.colors.error }]}
+              >
+                Clear All Data
+              </Text>
+              <Ionicons
+                name="trash-outline"
+                size={20}
+                color={Theme.colors.error}
+              />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <Text style={styles.versionText}>Version 1.0.0 • Offline Mode</Text>
       </ScrollView>
 
-      {/* Account Creation Modal */}
       <AccountCreationModal
         visible={accountModalVisible}
         onClose={() => {
@@ -365,7 +331,7 @@ export default function SettingsScreen() {
         setAccountNickname={setAccountNickname}
         accountType={accountType}
         setAccountType={setAccountType}
-        banks={BANKS}
+        banks={[...BANKS]}
         last4={inputLast4}
         setLast4={setInputLast4}
         openingBalance={openingBalance}
@@ -378,212 +344,135 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#09090B",
+    backgroundColor: Theme.colors.background,
+  },
+  header: {
+    paddingHorizontal: Theme.spacing.lg,
+    paddingTop: Theme.spacing.lg,
+    paddingBottom: Theme.spacing.md,
+  },
+  headerTitle: {
+    fontSize: Theme.typography.sizes.xxl,
+    fontFamily: Theme.typography.fontFamily.bold,
+    color: Theme.colors.textPrimary,
   },
   scrollView: {
     flex: 1,
   },
-  header: {
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#27272a",
+  scrollContent: {
+    paddingBottom: 40,
   },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "white",
-  },
-  section: {
-    padding: 20,
+  group: {
+    marginBottom: 24,
+    paddingHorizontal: Theme.spacing.lg,
   },
   sectionHeader: {
-    marginBottom: 16,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Theme.spacing.sm,
+    paddingHorizontal: 4,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "white",
-    marginBottom: 16,
+    fontSize: Theme.typography.sizes.sm,
+    fontFamily: Theme.typography.fontFamily.medium,
+    color: Theme.colors.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: 1,
   },
-  accountCard: {
+  actionText: {
+    fontSize: Theme.typography.sizes.sm,
+    fontFamily: Theme.typography.fontFamily.medium,
+    color: Theme.colors.primary,
+  },
+  card: {
+    backgroundColor: Theme.colors.surface,
+    borderRadius: Theme.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: Theme.colors.borderSubtle,
+    overflow: "hidden",
+  },
+  subHeader: {
+    fontSize: 12,
+    fontFamily: Theme.typography.fontFamily.bold,
+    color: Theme.colors.textTertiary,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 8,
+    textTransform: "uppercase",
+  },
+  accountItem: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#18181b",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "#27272a",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
   },
-  accountIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "rgba(168, 85, 247, 0.1)",
+  accountIconContainer: {
+    marginRight: 12,
+  },
+  bankIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: Theme.borderRadius.full,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 12,
   },
   accountInfo: {
     flex: 1,
   },
-  accountNickname: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "white",
-    marginBottom: 4,
+  accountName: {
+    fontSize: Theme.typography.sizes.base,
+    fontFamily: Theme.typography.fontFamily.medium,
+    color: Theme.colors.textPrimary,
   },
-  accountDetails: {
-    fontSize: 14,
-    color: "#71717a",
-  },
-  accountBalance: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  balanceAmount: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#22c55e",
-  },
-  emptyState: {
-    alignItems: "center",
-    paddingVertical: 40,
-  },
-  emptyText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#a1a1aa",
-    marginTop: 12,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: "#71717a",
-    marginTop: 4,
-    textAlign: "center",
-  },
-  settingItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#18181b",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "#27272a",
-    gap: 12,
-  },
-  settingLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-    gap: 12,
-  },
-  settingTextContainer: {
-    flex: 1,
-  },
-  settingText: {
-    fontSize: 16,
-    color: "#a1a1aa",
-  },
-  settingSubtext: {
-    fontSize: 13,
-    color: "#71717a",
+  accountDetail: {
+    fontSize: Theme.typography.sizes.xs,
+    color: Theme.colors.textSecondary,
     marginTop: 2,
   },
-  creditCard: {
-    width: "100%",
-    aspectRatio: 1.586,
-    borderRadius: 16,
-    padding: 24,
-    justifyContent: "space-between",
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-    position: "relative",
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 4.65,
-    elevation: 8,
+  accountBalance: {
+    marginRight: 8,
   },
-  cardOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(255,255,255,0.03)",
-  },
-  cardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-  },
-  cardBankName: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "rgba(255,255,255,0.9)",
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  },
-  cardChip: {
-    width: 44,
-    height: 32,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.2)",
-    backgroundColor: "rgba(255,255,255,0.1)",
-    position: "relative",
-    overflow: "hidden",
-  },
-  chipLine: {
-    position: "absolute",
-    top: 0,
-    bottom: 0,
-    left: 14,
-    width: 1,
-    backgroundColor: "rgba(0,0,0,0.2)",
-  },
-  chipBorder: {
-    position: "absolute",
-    top: "50%",
-    left: 0,
-    right: 0,
+  divider: {
     height: 1,
-    backgroundColor: "rgba(0,0,0,0.2)",
+    backgroundColor: Theme.colors.borderSubtle,
+    marginVertical: 8,
+    marginLeft: 16,
   },
-  cardNumber: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "rgba(255,255,255,0.9)",
-    letterSpacing: 4,
-    marginVertical: 12,
+  emptyState: {
+    padding: 20,
+    alignItems: "center",
   },
-  cardFooter: {
+  emptyText: {
+    color: Theme.colors.textTertiary,
+    fontStyle: "italic",
+  },
+
+  // Settings Rows
+  settingRow: {
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-between",
-    alignItems: "flex-end",
+    padding: 16,
   },
-  cardLabel: {
-    fontSize: 10,
-    color: "rgba(255,255,255,0.6)",
-    marginBottom: 4,
-    textTransform: "uppercase",
-    letterSpacing: 1,
+  settingInfo: {
+    flex: 1,
+    paddingRight: 16,
   },
-  cardHolderName: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "white",
-    textTransform: "uppercase",
-    letterSpacing: 1,
-    maxWidth: 160,
+  settingLabel: {
+    fontSize: Theme.typography.sizes.base,
+    fontFamily: Theme.typography.fontFamily.medium,
+    color: Theme.colors.textPrimary,
   },
-  cardBalance: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "white",
+  settingDesc: {
+    fontSize: Theme.typography.sizes.xs,
+    color: Theme.colors.textSecondary,
+    marginTop: 2,
+  },
+  versionText: {
+    textAlign: "center",
+    color: Theme.colors.textTertiary,
+    fontSize: 12,
+    marginTop: 20,
   },
 });

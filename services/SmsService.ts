@@ -1,5 +1,5 @@
 import * as FileSystem from "expo-file-system";
-import { Platform } from "react-native";
+import { PermissionsAndroid, Platform } from "react-native";
 import * as SmsReader from "sms-reader";
 import { getDb, initDb } from "./db";
 import { detectTransaction } from "./detection";
@@ -31,22 +31,57 @@ interface DbRow {
 
 export const getUnprocessedSms = async (): Promise<UnprocessedSms[]> => {
   try {
+    // 1. Permission Check (Android Only)
+    if (Platform.OS === "android") {
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.READ_SMS,
+        {
+          title: "SMS Permission",
+          message:
+            "This app needs access to your SMS to track expenses automatically.",
+          buttonNeutral: "Ask Me Later",
+          buttonNegative: "Cancel",
+          buttonPositive: "OK",
+        }
+      );
+
+      console.log("[SmsService] SMS Permission Status:", granted);
+
+      if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+        console.warn("[SmsService] Permission denied for READ_SMS");
+        return [];
+      }
+    }
+
     const db = await getDb();
     const smsList = await SmsReader.getSms(1000);
+
+    if (!Array.isArray(smsList)) {
+      console.warn("SmsReader returned non-array:", smsList);
+      return [];
+    }
+
+    console.log(`[SmsService] Fetched ${smsList.length} SMS messages`);
 
     const processedResult = await db.getAllAsync<DbRow>(
       "SELECT mobile_id FROM transactions"
     );
     const processedIds = new Set(
-      processedResult.map((row) => row.mobile_id).filter((id): id is string => !!id)
+      processedResult
+        .map((row) => row.mobile_id)
+        .filter((id): id is string => !!id)
     );
 
     const ignoredResult = await db.getAllAsync<DbRow>(
       "SELECT sms_id FROM ignored_sms"
     );
-    const ignoredIds = new Set(ignoredResult.map((row) => row.sms_id).filter((id): id is string => !!id));
+    const ignoredIds = new Set(
+      ignoredResult.map((row) => row.sms_id).filter((id): id is string => !!id)
+    );
 
     const unprocessed = smsList.filter((sms: SmsMessage) => {
+      // Robustness check for individual SMS object
+      if (!sms || !sms.body) return false;
       const isTransactional =
         /(?:Rs\.?|INR|₹|debited|credited|spent|paid)/i.test(sms.body);
       return isTransactional;
@@ -166,30 +201,32 @@ export const exportSmsAnalysis = async () => {
         bankingSmsCount: bankingSms.length,
         appVersion: "1.0.0",
       },
-      smsAnalysis: bankingSms.slice(0, 1000).map((sms: SmsMessage, index: number) => {
-        const { amount, merchant, type } = getSmartDetails(
-          sms.body,
-          sms.address
-        );
+      smsAnalysis: bankingSms
+        .slice(0, 1000)
+        .map((sms: SmsMessage, index: number) => {
+          const { amount, merchant, type } = getSmartDetails(
+            sms.body,
+            sms.address
+          );
 
-        return {
-          index: index + 1,
-          sender: sms.address,
-          date: new Date(parseInt(sms.date)).toISOString(),
-          body: sms.body,
-          parsing: {
-            amount: amount,
-            merchant: merchant,
-            type: type,
-            confidence: amount && merchant ? "high" : "low",
-          },
-          metadata: {
-            bodyLength: sms.body.length,
-            hasAmount: !!amount,
-            hasMerchant: !!merchant,
-          },
-        };
-      }),
+          return {
+            index: index + 1,
+            sender: sms.address,
+            date: new Date(parseInt(sms.date)).toISOString(),
+            body: sms.body,
+            parsing: {
+              amount: amount,
+              merchant: merchant,
+              type: type,
+              confidence: amount && merchant ? "high" : "low",
+            },
+            metadata: {
+              bodyLength: sms.body.length,
+              hasAmount: !!amount,
+              hasMerchant: !!merchant,
+            },
+          };
+        }),
     };
 
     const jsonContent = JSON.stringify(exportData, null, 2);

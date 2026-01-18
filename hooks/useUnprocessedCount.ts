@@ -1,6 +1,7 @@
 import { getDb } from "@/services/db";
 import * as SmsReader from "sms-reader";
 import { useEffect, useState } from "react";
+import { PermissionsAndroid, Platform } from "react-native";
 
 export const useUnprocessedCount = (refreshTrigger?: number) => {
   const [count, setCount] = useState(0);
@@ -11,6 +12,16 @@ export const useUnprocessedCount = (refreshTrigger?: number) => {
 
   const loadCount = async () => {
     try {
+      if (Platform.OS === "android") {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.READ_SMS
+        );
+        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+          setCount(0);
+          return;
+        }
+      }
+
       const db = await getDb();
       const smsList = await SmsReader.getSms(1000);
 
