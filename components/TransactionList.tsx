@@ -93,7 +93,7 @@ export function TransactionList({ data }: { data?: any[] }) {
       )}
       contentContainerStyle={{
         paddingHorizontal: 20,
-        paddingBottom: 100,
+        paddingBottom: 250, // Clear FABs
         paddingTop: 10,
         flexGrow: 1,
       }}

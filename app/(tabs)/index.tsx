@@ -125,7 +125,15 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      {/* Floating Action Button */}
+      {/* Floating Action Buttons */}
+      <TouchableOpacity
+        style={styles.fabScanner}
+        onPress={() => router.push('/upi-scanner')}
+        activeOpacity={0.8}
+      >
+        <Ionicons name="qr-code" size={24} color={Theme.colors.primaryForeground} />
+      </TouchableOpacity>
+      
       <TouchableOpacity
         style={styles.fab}
         onPress={() => setManualModalVisible(true)}
@@ -237,6 +245,22 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
+    backgroundColor: Theme.colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  fabScanner: {
+    position: "absolute",
+    right: Theme.spacing.xl,
+    bottom: 170, // Above the main FAB
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: Theme.colors.primary,
     justifyContent: "center",
     alignItems: "center",

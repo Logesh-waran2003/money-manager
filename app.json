@@ -22,7 +22,8 @@
       "predictiveBackGestureEnabled": false,
       "package": "com.logesh153.moneymanager.dev",
       "permissions": [
-        "READ_SMS"
+        "READ_SMS",
+        "CAMERA"
       ]
     },
     "web": {
@@ -44,7 +45,13 @@
         }
       ],
       "expo-sqlite",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Money Manager to scan UPI QR codes for payments"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
