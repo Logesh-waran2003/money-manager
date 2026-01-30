@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "money-manager",
+    "name": "Money Manager",
     "slug": "money-manager",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -20,7 +20,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.logesh153.moneymanager.dev",
+      "package": "com.logesh153.moneymanager",
       "permissions": [
         "READ_SMS",
         "CAMERA"

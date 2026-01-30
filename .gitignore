@@ -17,6 +17,10 @@ expo-env.d.ts
 *.p12
 *.key
 *.mobileprovision
+*.keystore
+
+# Gradle properties with secrets
+android/gradle.properties
 
 # Metro
 .metro-health-check*
